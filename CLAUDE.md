@@ -59,6 +59,83 @@ There is **no build step**. Edit `frontend/index.html` directly;
 the front reaches the backend via a `<meta name="api-base">` tag (empty =
 same-origin/local dev). See `backend/DEPLOY.md`.
 
+## Who works on this (collaboration model)
+
+Two roles:
+
+- **Feature collaborator** (may be a non-developer, working with Claude Code): adds
+  and tweaks features. Works almost entirely in **`frontend/index.html`** (the whole
+  UI + document parsing + report logic lives there) and occasionally in the Claude
+  prompts inside **`backend/serve.py`** (`COMPARE_SYSTEM_PROMPT`,
+  `SEGMENT_SYSTEM_PROMPT`). Does **not** touch the VPS, nginx, systemd, secrets, or
+  Postgres. To run locally they need only Python + Playwright + one API key (below).
+- **Dev / infra** (us): owns the VPS, deployment, nginx, systemd, Postgres, secrets,
+  and any backend structural change. Handles everything under "Live deployment".
+
+Golden rules for the collaborator:
+
+- Edit `frontend/index.html`; **bump the build marker** in the footer every change.
+- Test locally first (`cd backend && python serve.py`, open `http://localhost:5500`).
+- Commit + push to `main`. **Deploying to the live server is a dev step** (a dev runs
+  `git pull` on the VPS) — pushing does NOT auto-deploy.
+- Never commit real secrets. The only one needed locally is your own
+  `ANTHROPIC_API_KEY` in `backend/.env` (gitignored).
+
+## Live deployment (current — single VPS)
+
+The whole tool runs on one Hostinger VPS. There is **no Cloudflare Pages** anymore
+(retired 2026-07-10); the VPS serves both the front and the API.
+
+- **URL:** `http://191.101.235.160` — HTTP, **open access** (dev; no auth yet).
+- **Host:** Ubuntu 24.04 VPS; monorepo cloned at **`/opt/copymatch`**, runs as the
+  `copymatch` system user. SSH is dev-only, key-based (`root@191.101.235.160`).
+- **Process:** `serve.py` under **systemd** service `copymatch`
+  (`systemctl status|restart copymatch`; logs `journalctl -u copymatch -f`).
+- **nginx:** serves `frontend/` at `/` and proxies `/api/*` → `serve.py` (`:5500`,
+  localhost-only), injecting the proxy secret so serve.py accepts the request.
+- **Postgres 16:** installed, local-only, DB + role `copymatch`. **Not used by the
+  code yet** — reserved for Phase 2 (history, projects, dictionaries).
+- **Firewall:** ufw allows 22/80/443 only; `:5500` and `:5432` are not exposed.
+
+```
+http://191.101.235.160 (VPS, /opt/copymatch)
+├── /       → frontend/          (nginx static)
+└── /api/*  → serve.py :5500      (nginx strips /api + injects X-Proxy-Secret)
+              ├── /render  Playwright + Chromium
+              ├── /ai/*    Claude (key in backend/.env)
+              └── (Postgres local, Phase 2)
+```
+
+**Deploying a change** (dev step): push to `main`, then on the VPS
+`cd /opt/copymatch && sudo -H -u copymatch git pull && sudo systemctl restart copymatch`
+(front changes are static so the pull is enough; restart only matters for `backend/`
+changes). Full runbook: `backend/DEPLOY.md`.
+
+## Keys, secrets & credentials
+
+Real values live **only** in `/opt/copymatch/backend/.env` on the VPS (gitignored)
+and in each dev's local `backend/.env`. **Never commit them or write them in this
+file.** When setting up a **new environment** (new VPS, or a fresh local machine),
+these must be generated/obtained:
+
+| Secret | For | Lives in | How to generate/obtain | Who |
+|---|---|---|---|---|
+| `ANTHROPIC_API_KEY` | Claude calls (`/ai/*`) | `backend/.env` | Anthropic Console → API Keys → Create Key | dev (prod) + each collaborator (local) |
+| `PROXY_SECRET` | Secret nginx injects so `serve.py` accepts `/api/*` | `backend/.env` **and** the nginx `X-Proxy-Secret` line (must match) | `openssl rand -hex 32` | dev |
+| Postgres password | The DB role's password in `DATABASE_URL` | `backend/.env` (`DATABASE_URL`) + set on the DB role | `openssl rand -hex 24`, then `CREATE ROLE ... PASSWORD '…'` | dev |
+| VPS SSH key | Log into the VPS as root | dev's `~/.ssh/` + VPS `~/.ssh/authorized_keys` | `ssh-keygen`; add the pubkey via Hostinger panel or `authorized_keys` | dev |
+| GitHub deploy key | VPS clones/pulls the private repo | VPS `/opt/copymatch/.ssh/github_deploy` + the repo's Deploy keys | `ssh-keygen` on the VPS; add the pubkey to GitHub → repo → Settings → Deploy keys (read-only) | dev |
+
+**A collaborator working locally needs ONLY their own `ANTHROPIC_API_KEY`** in
+`backend/.env`. Everything else is infra the dev sets up once per server.
+
+Rotating: `ANTHROPIC_API_KEY` in the Anthropic Console; `PROXY_SECRET` = a new
+`openssl rand -hex 32` in **both** `backend/.env` and the nginx config, then
+`systemctl restart copymatch` + `systemctl reload nginx`; Postgres via
+`ALTER ROLE copymatch PASSWORD '…'` + update `DATABASE_URL`. (Note: the values used
+in the current live setup were shared over chat during setup — rotate them if that
+history is a concern.)
+
 ## How to run / test
 
 - **Required:** `cd backend && py serve.py` then open `http://localhost:5500` — the backend also
