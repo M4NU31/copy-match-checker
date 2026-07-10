@@ -216,6 +216,30 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
 @media (max-width:1000px){.grid-2{grid-template-columns:1fr;} .summary{grid-template-columns:repeat(4,1fr);}}
 @media (max-width:560px){.summary{grid-template-columns:repeat(2,1fr);} .field-row{grid-template-columns:1fr;}}
+
+/* ---------- dashboard (project grid) ---------- */
+.dash-toolbar{display:flex; gap:14px; align-items:center; margin-bottom:22px;}
+.dash-search{position:relative; flex:1;}
+.dash-search .ico{position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--muted);}
+.dash-search input{padding-left:38px;}
+.dash-toolbar .btn{flex:none; white-space:nowrap;}
+.proj-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:16px;}
+.proj-card{background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:18px;
+  cursor:pointer; transition:transform .15s ease, border-color .15s ease, box-shadow .15s ease; text-align:left;}
+.proj-card:hover{transform:translateY(-3px); border-color:var(--border-2); box-shadow:0 10px 26px rgba(0,0,0,.4);}
+.proj-card-top{display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:6px;}
+.proj-card-top h3{margin:0; font-size:15.5px; line-height:1.35; word-break:break-word;}
+.proj-score{flex:none; font-size:13px; font-weight:800; padding:3px 10px; border-radius:20px; white-space:nowrap;}
+.proj-score.na{color:var(--muted); background:var(--card-2); border:1px solid var(--border-2);}
+.proj-score.good{color:var(--green); background:rgba(47,214,166,.12); border:1px solid rgba(47,214,166,.35);}
+.proj-score.mid{color:var(--amber); background:rgba(245,165,36,.12); border:1px solid rgba(245,165,36,.35);}
+.proj-score.bad{color:var(--pink-2); background:var(--pink-dim); border:1px solid rgba(255,20,73,.35);}
+.proj-meta{color:var(--text-2); font-size:12.5px; margin-bottom:14px; min-height:16px;}
+.proj-card-bottom{color:var(--muted); font-size:12px; padding-top:12px; border-top:1px solid var(--border);}
+.proj-empty,.proj-error,.proj-loading{color:var(--muted); text-align:center; padding:50px 20px;}
+.proj-error{color:var(--pink-2);}
+.proj-header{display:flex; align-items:center; gap:14px; margin-bottom:20px;}
+.proj-header h2{margin:0; font-size:19px;}
 </style>
 </head>
 <body>
@@ -240,6 +264,31 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
       </button>
     </div>
   </header>
+
+  <!-- ============ DASHBOARD (project list) ============ -->
+  <div id="dashboardView">
+    <div class="dash-toolbar">
+      <label class="dash-search">
+        <svg class="ico ico-sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="projSearch" placeholder="Buscar proyecto…" />
+      </label>
+      <button class="btn btn-primary" id="addProjectBtn">
+        <svg class="ico ico-sm" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add Proyecto
+      </button>
+    </div>
+    <div id="projGrid" class="proj-grid"></div>
+  </div>
+
+  <!-- ============ PROJECT (the tool itself) ============ -->
+  <div id="projectView" class="hidden">
+    <div class="proj-header">
+      <button class="btn btn-ghost" id="backToProjects">
+        <svg class="ico ico-sm" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+        Projects
+      </button>
+      <h2 id="projectTitleHeading"></h2>
+    </div>
 
   <!-- ============ INPUTS ============ -->
   <section class="grid-2">
@@ -342,11 +391,21 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
       </div>
     </div>
   </section>
+  </div><!-- /projectView -->
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-08c · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10a · Punch Toolkit</span>
   </footer>
+</div>
+
+<!-- add project modal -->
+<div class="modal hidden" id="addProjectModal">
+  <div class="modal-box">
+    <div class="modal-head"><h3><svg class="ico" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New project</h3><button class="x" id="closeAddProject"><svg class="ico" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <label class="field"><span>Project name</span><input type="text" id="newProjectName" placeholder="e.g. Fortreum — Accreditations" /></label>
+    <button class="btn btn-primary btn-lg" id="createProjectBtn">Create project</button>
+  </div>
 </div>
 
 <!-- how it works modal -->
@@ -384,7 +443,22 @@ const $=(s)=>document.querySelector(s), $$=(s)=>Array.from(document.querySelecto
 // so local dev never hits a remote backend. See DEPLOY.md.
 const API_BASE=(location.hostname==="localhost"||location.hostname==="127.0.0.1"||location.protocol==="file:")?"":(document.querySelector('meta[name="api-base"]')?.content||"").replace(/\/$/,"");
 const state={approvedText:"",approvedBlocks:[],pages:[],issues:[],allIssues:[],done:new Set(),
-  docKind:null,pdfDoc:null,pdfLines:[],docText:"",isDocx:false,isRunning:false,runCtrl:null};
+  docKind:null,pdfDoc:null,pdfLines:[],docText:"",isDocx:false,isRunning:false,runCtrl:null,
+  projectId:null,projects:[]};
+
+/* ---------------- projects API helpers ---------------- */
+async function apiCall(method,path,body){
+  const opts={method,credentials:"include",headers:{}};
+  if(body!==undefined){opts.headers["Content-Type"]="application/json";opts.body=JSON.stringify(body);}
+  const res=await fetch(API_BASE+path,opts);
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok)throw new Error(data.error||("HTTP "+res.status));
+  return data;
+}
+const apiGet=(path)=>apiCall("GET",path);
+const apiPost=(path,body)=>apiCall("POST",path,body);
+const apiPut=(path,body)=>apiCall("PUT",path,body);
+const apiPatch=(path,body)=>apiCall("PATCH",path,body);
 
 /* ---------------- text utils ---------------- */
 function normalize(s){return (s||"").replace(/\s+/g," ").replace(/[‘’]/g,"'").replace(/[“”]/g,'"').replace(/[–—]/g,"-").trim();}
@@ -968,7 +1042,7 @@ function renderSummary(){const I=state.allIssues.filter(i=>!state.done.has(issue
   $("#sExtra").textContent=I.filter(i=>i.type==="Extra Section").length;
   $("#sCta").textContent=I.filter(i=>i.type==="CTA Issue"||i.type==="Link Review").length;
   $("#sMatch").textContent=liveScore()+"%";
-  $("#summaryMeta").textContent=`· ${state.meta.client||"—"} · ${state.meta.page||"—"} · ${state.meta.cms} · ${state.approvedCount} approved vs ${state.pageCount} page blocks`;
+  $("#summaryMeta").textContent=`· ${state.meta.client||"—"} · ${state.meta.page||"—"} · ${state.meta.cms||"—"} · ${state.approvedCount??"—"} approved vs ${state.pageCount??"—"} page blocks`;
 }
 function renderTable(filter){
   const body=$("#issuesBody");let rows=state.allIssues;
@@ -988,9 +1062,13 @@ function renderTable(filter){
     <td>${esc(i.fix)}</td>
     <td class="done-cell"><button class="done-btn${done?' undo':''}" data-id="${esc(id)}" title="${done?'Mark as not done':'Mark as resolved'}">${done?'Done':'In progress'}</button></td></tr>`;}).join("");
   body.querySelectorAll(".done-btn").forEach(btn=>btn.addEventListener("click",()=>{
-    if(state.done.has(btn.dataset.id))state.done.delete(btn.dataset.id);else state.done.add(btn.dataset.id);
+    const id=btn.dataset.id,nowDone=!state.done.has(id);
+    if(nowDone)state.done.add(id);else state.done.delete(id);
     renderSummary();  // Match Score + tab counts move live as issues get resolved/unresolved
     renderTable(state.activeFilter||"all");
+    // Persist so the dashboard grid's resolved/total count reflects this without a re-run.
+    if(state.projectId)apiPatch(`/projects/${state.projectId}/issues/${encodeURIComponent(id)}`,{done:nowDone})
+      .catch(e=>toast("Could not save: "+(e.message||e)));
   }));
   body.querySelectorAll(".locate-btn").forEach(b=>b.addEventListener("click",()=>{
     const iss=state.allIssues.find(x=>issueId(x)===b.dataset.loc); if(iss)locateIssue(iss);
@@ -1154,12 +1232,14 @@ async function run(){
     const mechIssues=mechanicalAndLinkChecks(page,scope);
     // Scope: keep only the requested categories of checks
     const CONTENT_TYPES=new Set(["Missing Copy","Copy Mismatch","Extra Section","Typo","Spacing Issue","Punctuation Issue","Observation"]);
-    state.issues=[...cmp.issues,...mechIssues].filter(i=>i.type==="CTA Issue"?sel.cta:i.type==="Link Review"?sel.links:CONTENT_TYPES.has(i.type)?sel.content:true);
+    state.issues=[...cmp.issues,...mechIssues].filter(i=>i.type==="CTA Issue"?sel.cta:i.type==="Link Review"?sel.links:CONTENT_TYPES.has(i.type)?sel.content:true)
+      .map(i=>({...i,id:issueId(i),done:false}));
     state.score=cmp.score;
     state.approvedCount=state.approvedBlocks.filter(b=>b.kind!=="alternate").length;
     state.pageCount=page.blocks.length;
     state.meta={client:$("#clientName").value.trim(),page:$("#pageName").value.trim(),url,cms};
     renderAll();
+    await saveProjectRun();
     const obs=state.allIssues.filter(i=>i.type==="Observation").length;
     $("#runNote").textContent=`Done · ${cms} · ${page.ctas.length} CTAs · ${page.links.length} links${obs?` · ${obs} observation${obs===1?"":"s"}`:""}`;
     toast(`QA complete — ${countType("all")} issues`);
@@ -1168,6 +1248,113 @@ async function run(){
     else{$("#runNote").textContent="";toast("Check failed");alert("Could not complete the check:\n\n"+(err.message||err));}
   }finally{state.isRunning=false;state.runCtrl=null;btn.innerHTML=`<svg class="ico ico-sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Run QA Check`;}
 }
+async function saveProjectRun(){
+  if(!state.projectId)return;
+  try{
+    await apiPut(`/projects/${state.projectId}/run`,{
+      site_name:state.meta.client,page_name:state.meta.page,page_url:state.meta.url,
+      score:state.score,issues:state.issues,
+    });
+  }catch(e){toast("Could not save project results: "+(e.message||e));}
+}
+
+/* ---------------- dashboard (project grid) + routing ----------------
+   The main landing page is a shared, team-wide grid of projects (stored in
+   Postgres via serve.py's /projects endpoints — see CLAUDE.md). The QA tool
+   itself (upload/run/results, everything above) only becomes reachable once
+   a project is opened. Routing is a plain location.hash switch — "" / "#/" is
+   the dashboard, "#/p/<id>" is a project — so a project is bookmarkable/
+   shareable without any router library. */
+function scoreClass(score){
+  if(score==null)return "na";
+  if(score>=90)return "good";
+  if(score>=70)return "mid";
+  return "bad";
+}
+function projCardHtml(p){
+  const hasScore=p.score!=null;
+  const scoreLabel=hasScore?p.live_score+"%":"—";
+  const metaBits=[p.site_name,p.page_name].filter(Boolean).join(" · ");
+  return `<button class="proj-card" data-id="${p.id}">
+    <div class="proj-card-top"><h3>${esc(p.name)}</h3><span class="proj-score ${scoreClass(hasScore?p.live_score:null)}">${scoreLabel}</span></div>
+    <div class="proj-meta">${metaBits?esc(metaBits):'<span class="muted">Not run yet</span>'}</div>
+    <div class="proj-card-bottom">${p.issues_resolved}/${p.issues_total} issues resolved</div>
+  </button>`;
+}
+function renderProjGrid(){
+  const grid=$("#projGrid"),q=($("#projSearch").value||"").trim().toLowerCase();
+  const list=q?state.projects.filter(p=>(p.name||"").toLowerCase().includes(q)||(p.site_name||"").toLowerCase().includes(q)||(p.page_name||"").toLowerCase().includes(q)):state.projects;
+  if(!list.length){
+    grid.innerHTML=`<div class="proj-empty">${state.projects.length?"No projects match your search.":"No projects yet — click “+ Add Proyecto” to create the first one."}</div>`;
+    return;
+  }
+  grid.innerHTML=list.map(projCardHtml).join("");
+  grid.querySelectorAll(".proj-card").forEach(c=>c.addEventListener("click",()=>{location.hash="#/p/"+c.dataset.id;}));
+}
+async function loadProjects(){
+  const grid=$("#projGrid");grid.innerHTML=`<div class="proj-loading">Loading projects…</div>`;
+  try{
+    const data=await apiGet("/projects");
+    state.projects=data.projects||[];
+    renderProjGrid();
+  }catch(e){
+    grid.innerHTML=`<div class="proj-error">Could not load the project list: ${esc(e.message||String(e))}</div>`;
+  }
+}
+$("#projSearch").addEventListener("input",renderProjGrid);
+$("#addProjectBtn").addEventListener("click",()=>{$("#newProjectName").value="";$("#addProjectModal").classList.remove("hidden");$("#newProjectName").focus();});
+$("#closeAddProject").addEventListener("click",()=>$("#addProjectModal").classList.add("hidden"));
+$("#addProjectModal").addEventListener("click",e=>{if(e.target.id==="addProjectModal")$("#addProjectModal").classList.add("hidden");});
+$("#createProjectBtn").addEventListener("click",async()=>{
+  const name=$("#newProjectName").value.trim();
+  if(!name){toast("Enter a project name");return;}
+  try{
+    const p=await apiPost("/projects",{name});
+    $("#addProjectModal").classList.add("hidden");
+    location.hash="#/p/"+p.id;
+  }catch(e){toast("Could not create project: "+(e.message||e));}
+});
+$("#backToProjects").addEventListener("click",()=>{location.hash="#/";});
+
+function resetToolState(){
+  state.approvedText="";state.approvedBlocks=[];state.pages=[];state.issues=[];state.allIssues=[];state.done=new Set();
+  state.docKind=null;state.pdfDoc=null;state.pdfLines=[];state.docText="";state.isDocx=false;state.score=undefined;
+  state.approvedCount=undefined;state.pageCount=undefined;state.meta={};
+  $("#clientName").value="";$("#pageName").value="";$("#pageUrl").value="";
+  fileInput.value="";$("#dropFilled").classList.add("hidden");$("#dropEmpty").classList.remove("hidden");
+  hidePageSelect();setStatus("No approved copy loaded yet.");$("#runNote").textContent="";
+  $("#results").classList.add("hidden");
+}
+async function loadProject(id){
+  resetToolState();
+  state.projectId=id;
+  $("#projectTitleHeading").textContent="Loading…";
+  try{
+    const p=await apiGet(`/projects/${id}`);
+    $("#projectTitleHeading").textContent=p.name;
+    $("#clientName").value=p.site_name||"";
+    $("#pageName").value=p.page_name||"";
+    $("#pageUrl").value=p.page_url||"";
+    if(p.issues&&p.issues.length){
+      state.issues=p.issues;state.score=p.score||0;
+      state.done=new Set(p.issues.filter(i=>i.done).map(i=>i.id));
+      state.meta={client:p.site_name,page:p.page_name,url:p.page_url,cms:"—"};
+      renderAll();
+      $("#runNote").textContent=`Showing the last run · ${new Date(p.last_run_at).toLocaleString()}`;
+    }
+  }catch(e){
+    $("#projectTitleHeading").textContent="Project";
+    toast("Could not load project: "+(e.message||e));
+  }
+}
+function showDashboard(){$("#dashboardView").classList.remove("hidden");$("#projectView").classList.add("hidden");loadProjects();}
+function showProjectView(id){$("#dashboardView").classList.add("hidden");$("#projectView").classList.remove("hidden");loadProject(id);}
+function routeFromHash(){
+  const m=location.hash.match(/^#\/p\/(\d+)/);
+  if(m)showProjectView(+m[1]);else showDashboard();
+}
+window.addEventListener("hashchange",routeFromHash);
+routeFromHash();
 </script>
 </body>
 </html>

@@ -18,6 +18,7 @@ import urllib.parse
 import urllib.error
 import sys
 import os
+import re
 import gzip
 import io
 import json
@@ -376,6 +377,102 @@ def render_page(url, timeout_ms=30000):
             browser.close()
 
 
+# ---- Projects data layer: the dashboard (grid of projects, each with its last
+# match score and resolved/total issue counts) is shared across the whole team,
+# so it lives in Postgres rather than the browser (localStorage would give each
+# teammate a different list). Reserved DATABASE_URL from Phase 2 planning is now
+# actually used. Degrades explicitly (503, no silent fallback — see CLAUDE.md's
+# philosophy on the AI endpoints) when psycopg2 isn't installed or DATABASE_URL
+# isn't set, instead of crashing serve.py on startup.
+try:
+    import psycopg2
+    PSYCOPG2_AVAILABLE = True
+except ImportError:
+    PSYCOPG2_AVAILABLE = False
+
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+DB_AVAILABLE = PSYCOPG2_AVAILABLE and bool(DATABASE_URL)
+
+
+def get_db_conn():
+    return psycopg2.connect(DATABASE_URL)
+
+
+def init_db():
+    if not DB_AVAILABLE:
+        return
+    conn = get_db_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS projects (
+                    id SERIAL PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    site_name TEXT NOT NULL DEFAULT '',
+                    page_name TEXT NOT NULL DEFAULT '',
+                    page_url TEXT NOT NULL DEFAULT '',
+                    score INTEGER,
+                    issues JSONB NOT NULL DEFAULT '[]'::jsonb,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    last_run_at TIMESTAMPTZ
+                );
+            """)
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def db_query(sql, params=(), fetch=None):
+    """fetch: None (no result), "one", or "all". Commits on success, always closes."""
+    conn = get_db_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql, params)
+            result = cur.fetchone() if fetch == "one" else cur.fetchall() if fetch == "all" else None
+        conn.commit()
+        return result
+    finally:
+        conn.close()
+
+
+PROJECT_COLUMNS = "id,name,site_name,page_name,page_url,score,issues,created_at,updated_at,last_run_at"
+
+
+def _issue_stats(issues, score):
+    """Observations are never counted as errors (matches index.html's countType()).
+    live_score interpolates from Claude's snapshot score toward 100% as the team
+    marks issues Done, the same formula as the single-project view's liveScore()
+    — so the dashboard card and the project page never show two different numbers."""
+    errors = [i for i in issues if isinstance(i, dict) and i.get("type") != "Observation"]
+    total = len(errors)
+    resolved = len([i for i in errors if i.get("done")])
+    if total == 0:
+        live = 100
+    else:
+        base = score if isinstance(score, (int, float)) else 0
+        live = round(base + (100 - base) * (1 - (total - resolved) / total))
+    return total, resolved, live
+
+
+def _project_summary(row):
+    (pid, name, site_name, page_name, page_url, score, issues, created_at, updated_at, last_run_at) = row
+    total, resolved, live = _issue_stats(issues or [], score)
+    return {
+        "id": pid, "name": name, "site_name": site_name, "page_name": page_name,
+        "page_url": page_url, "score": score, "live_score": live,
+        "issues_total": total, "issues_resolved": resolved,
+        "last_run_at": last_run_at.isoformat() if last_run_at else None,
+        "updated_at": updated_at.isoformat() if updated_at else None,
+    }
+
+
+def _project_full(row):
+    d = _project_summary(row)
+    d["issues"] = row[6] or []
+    return d
+
+
 BROWSER_HEADERS = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                    "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"),
@@ -390,6 +487,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self.handle_fetch()
         if self.path.startswith("/render?") or self.path.startswith("/render/?"):
             return self.handle_render()
+        if self.path == "/projects":
+            return self.handle_projects_list()
+        m = re.match(r"^/projects/(\d+)$", self.path)
+        if m:
+            return self.handle_project_get(int(m.group(1)))
         return super().do_GET()
 
     def do_POST(self):
@@ -397,6 +499,20 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self.handle_ai_compare()
         if self.path == "/ai/segment-pages":
             return self.handle_ai_segment()
+        if self.path == "/projects":
+            return self.handle_project_create()
+        return self._send(404, "text/plain", b"Not found")
+
+    def do_PUT(self):
+        m = re.match(r"^/projects/(\d+)/run$", self.path)
+        if m:
+            return self.handle_project_run(int(m.group(1)))
+        return self._send(404, "text/plain", b"Not found")
+
+    def do_PATCH(self):
+        m = re.match(r"^/projects/(\d+)/issues/([^/]+)$", self.path)
+        if m:
+            return self.handle_issue_toggle(int(m.group(1)), urllib.parse.unquote(m.group(2)))
         return self._send(404, "text/plain", b"Not found")
 
     def do_OPTIONS(self):
@@ -404,7 +520,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         # standalone front. Same-origin/local dev never sends this.
         self.send_response(204)
         self._write_cors_headers()
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.send_header("Access-Control-Max-Age", "86400")
         self.send_header("Content-Length", "0")
@@ -462,6 +578,106 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                                    json.dumps({"error": "approved_blocks and page_blocks are required"}).encode("utf-8"))
             issues, score = call_claude_compare(payload)
             self._send(200, "application/json", json.dumps({"issues": issues, "score": score}).encode("utf-8"))
+        except Exception as e:  # noqa: BLE001
+            self._send(502, "application/json", json.dumps({"error": str(e)}).encode("utf-8"))
+
+    def _db_unavailable(self):
+        self._send(503, "application/json", json.dumps({
+            "error": "Database not configured on the server (DATABASE_URL / psycopg2 missing). "
+                     "Ask a dev to set DATABASE_URL in backend/.env and install psycopg2-binary.",
+        }).encode("utf-8"))
+
+    def handle_projects_list(self):
+        if not self._secret_ok():
+            return
+        if not DB_AVAILABLE:
+            return self._db_unavailable()
+        try:
+            rows = db_query(f"SELECT {PROJECT_COLUMNS} FROM projects ORDER BY updated_at DESC", fetch="all")
+            self._send(200, "application/json", json.dumps({"projects": [_project_summary(r) for r in rows]}).encode("utf-8"))
+        except Exception as e:  # noqa: BLE001
+            self._send(502, "application/json", json.dumps({"error": str(e)}).encode("utf-8"))
+
+    def handle_project_get(self, pid):
+        if not self._secret_ok():
+            return
+        if not DB_AVAILABLE:
+            return self._db_unavailable()
+        try:
+            row = db_query(f"SELECT {PROJECT_COLUMNS} FROM projects WHERE id=%s", (pid,), fetch="one")
+            if not row:
+                return self._send(404, "application/json", json.dumps({"error": "Project not found"}).encode("utf-8"))
+            self._send(200, "application/json", json.dumps(_project_full(row)).encode("utf-8"))
+        except Exception as e:  # noqa: BLE001
+            self._send(502, "application/json", json.dumps({"error": str(e)}).encode("utf-8"))
+
+    def handle_project_create(self):
+        if not self._secret_ok():
+            return
+        if not DB_AVAILABLE:
+            return self._db_unavailable()
+        length = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(length) if length else b"{}"
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+            name = (payload.get("name") or "").strip()
+            if not name:
+                return self._send(400, "application/json", json.dumps({"error": "name is required"}).encode("utf-8"))
+            row = db_query(
+                f"INSERT INTO projects (name) VALUES (%s) RETURNING {PROJECT_COLUMNS}", (name,), fetch="one")
+            self._send(200, "application/json", json.dumps(_project_full(row)).encode("utf-8"))
+        except Exception as e:  # noqa: BLE001
+            self._send(502, "application/json", json.dumps({"error": str(e)}).encode("utf-8"))
+
+    def handle_project_run(self, pid):
+        if not self._secret_ok():
+            return
+        if not DB_AVAILABLE:
+            return self._db_unavailable()
+        length = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(length) if length else b"{}"
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+            issues = payload.get("issues")
+            issues = issues if isinstance(issues, list) else []
+            score = payload.get("score")
+            row = db_query(
+                f"""UPDATE projects SET site_name=%s, page_name=%s, page_url=%s, score=%s,
+                    issues=%s::jsonb, last_run_at=now(), updated_at=now()
+                    WHERE id=%s RETURNING {PROJECT_COLUMNS}""",
+                (payload.get("site_name") or "", payload.get("page_name") or "", payload.get("page_url") or "",
+                 score if isinstance(score, (int, float)) else None, json.dumps(issues), pid),
+                fetch="one")
+            if not row:
+                return self._send(404, "application/json", json.dumps({"error": "Project not found"}).encode("utf-8"))
+            self._send(200, "application/json", json.dumps(_project_full(row)).encode("utf-8"))
+        except Exception as e:  # noqa: BLE001
+            self._send(502, "application/json", json.dumps({"error": str(e)}).encode("utf-8"))
+
+    def handle_issue_toggle(self, pid, issue_id):
+        if not self._secret_ok():
+            return
+        if not DB_AVAILABLE:
+            return self._db_unavailable()
+        length = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(length) if length else b"{}"
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+            done = bool(payload.get("done"))
+            row = db_query("SELECT issues FROM projects WHERE id=%s", (pid,), fetch="one")
+            if not row:
+                return self._send(404, "application/json", json.dumps({"error": "Project not found"}).encode("utf-8"))
+            issues = row[0] or []
+            found = False
+            for issue in issues:
+                if isinstance(issue, dict) and issue.get("id") == issue_id:
+                    issue["done"] = done
+                    found = True
+            db_query("UPDATE projects SET issues=%s::jsonb, updated_at=now() WHERE id=%s", (json.dumps(issues), pid))
+            total, resolved, _ = _issue_stats(issues, None)
+            self._send(200, "application/json", json.dumps({
+                "ok": found, "issues_total": total, "issues_resolved": resolved,
+            }).encode("utf-8"))
         except Exception as e:  # noqa: BLE001
             self._send(502, "application/json", json.dumps({"error": str(e)}).encode("utf-8"))
 
@@ -526,6 +742,12 @@ class Server(socketserver.ThreadingTCPServer):
 
 
 if __name__ == "__main__":
+    if DB_AVAILABLE:
+        try:
+            init_db()
+        except Exception as e:  # noqa: BLE001
+            print(f"DATABASE_URL set but could not initialize the projects table: {e}")
+            DB_AVAILABLE = False
     handler = functools.partial(Handler, directory=FRONTEND_DIR)
     with Server(("", PORT), handler) as httpd:
         print(f"Copy Match Checker  ->  http://localhost:{PORT}")
@@ -547,6 +769,12 @@ if __name__ == "__main__":
             print("Proxy secret set  ->  /render + /ai/* require X-Proxy-Secret")
         else:
             print("Proxy secret NOT set  ->  endpoints open (fine for local dev)")
+        if DB_AVAILABLE:
+            print("DATABASE_URL loaded  ->  /projects endpoints enabled (dashboard)")
+        elif not PSYCOPG2_AVAILABLE:
+            print("psycopg2 NOT installed  ->  /projects disabled. Run: py -m pip install psycopg2-binary")
+        else:
+            print("DATABASE_URL not set  ->  /projects disabled (add it to .env)")
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:

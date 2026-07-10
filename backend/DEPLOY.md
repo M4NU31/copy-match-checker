@@ -55,7 +55,7 @@ The venv and browser download live at the repo root (outside the subfolders):
 ```bash
 cd /opt/copymatch
 sudo -H -u copymatch python3 -m venv .venv
-sudo -H -u copymatch .venv/bin/pip install --upgrade pip playwright
+sudo -H -u copymatch .venv/bin/pip install --upgrade pip -r backend/requirements.txt
 sudo -H -u copymatch env PLAYWRIGHT_BROWSERS_PATH=/opt/copymatch/.playwright \
   .venv/bin/playwright install chromium
 .venv/bin/playwright install-deps chromium      # needs root (apt)
@@ -139,10 +139,18 @@ connection string goes in `backend/.env` as `DATABASE_URL`.
 
 ```bash
 cd /opt/copymatch && sudo -H -u copymatch git pull
-# if backend deps changed: sudo -H -u copymatch .venv/bin/pip install ...
+# if backend/requirements.txt changed (the auto-deploy on push does NOT do this):
+sudo -H -u copymatch .venv/bin/pip install -r backend/requirements.txt
 systemctl restart copymatch
 # front changes are static; git pull already updated /opt/copymatch/frontend
 ```
+
+**2026-07-10: added the `/projects` dashboard.** Requires `psycopg2-binary`
+(added to `backend/requirements.txt`) and `DATABASE_URL` set in
+`backend/.env` (already provisioned per step 8 below). The one-time manual
+step above (`pip install -r backend/requirements.txt`) must run once on the
+VPS for the dashboard to work — until then `serve.py` still starts and
+everything else keeps working, but `/projects` replies with a clear 503.
 
 ## Restricting access (currently open)
 

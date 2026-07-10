@@ -1,0 +1,15 @@
+# Copy Match Checker backend — Python dependencies.
+# Install: py -m pip install -r requirements.txt (Windows) / pip install -r requirements.txt (VPS)
+#
+# NOTE: the VPS auto-deploy (push to main -> GitHub Actions) only runs
+# `git pull` + restart, it does NOT install dependencies. When this file
+# changes, a dev must also run, once, on the VPS:
+#   sudo -H -u copymatch /opt/copymatch/.venv/bin/pip install -r /opt/copymatch/backend/requirements.txt
+
+# Renders pages with a real (headless) Chrome so JS-inserted content is present.
+playwright
+
+# Postgres driver for the /projects endpoints (shared team dashboard data).
+# Optional at runtime: serve.py degrades to a clear 503 on /projects if this
+# isn't installed or DATABASE_URL isn't set, instead of crashing on startup.
+psycopg2-binary
