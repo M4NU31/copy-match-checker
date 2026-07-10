@@ -34,12 +34,13 @@ Pages would serve backend files as static, and the build tooling breaks).
 punch-copymatch-checker/            (monorepo root — origin: copy-match-checker.git)
 ├── CLAUDE.md                       ← This file.
 ├── README.md                      ← User-facing docs (Spanish), whole-tool.
-├── .gitignore                     ← Root ignores (sample-decks/, .env, cruft).
+├── .gitignore                     ← Root ignores (sample-decks/, full-build-v0.4/, .env, cruft).
 ├── sample-decks/                  ← Real client copy decks (PDF) for manual testing (GITIGNORED).
-├── full-build-v0.4/               ← ARCHIVED advanced build (Google Docs OAuth, multi-URL,
-│                                     history, dictionaries). Base for a future "Phase 2".
-│                                     Do not wire it in.
-├── frontend/                       Static front (Cloudflare Pages, and/or served by the VPS)
+├── full-build-v0.4/               ← ARCHIVED experimental build (Google Docs OAuth, multi-URL,
+│                                     history, dictionaries) — a Phase 2 reference snapshot, NOT
+│                                     a build artifact. GITIGNORED (local only; also in the
+│                                     initial commit's history). Do not wire it in.
+├── frontend/                       Static front (served by the VPS; Pages retired 2026-07-10)
 │   ├── index.html                 ← THE APP. Single file: HTML + <style> + <script>. Edit here.
 │   ├── functions/api/[[path]].js  ← Pages Function: proxies /api/* to the backend + secret.
 │   ├── wrangler.jsonc             ← Marks the Pages project (pages_build_output_dir).

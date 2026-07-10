@@ -1,6 +1,10 @@
 # Client copy decks for manual testing (confidential + large) — never commit
 sample-decks/
 
+# Archived experimental build (Phase 2 reference). Kept locally, not in the repo.
+# Still recoverable from the initial commit's history if ever needed.
+full-build-v0.4/
+
 # Env files (defense in depth; backend/.gitignore also covers backend/.env)
 .env
 
