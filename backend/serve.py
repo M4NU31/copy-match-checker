@@ -688,7 +688,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             doc_bytes = None
             if doc.get("data_base64"):
                 try:
-                    doc_bytes = base64.b64decode(doc["data_base64"])
+                    # psycopg2 (Python 3) does NOT auto-adapt plain `bytes` to
+                    # bytea — passing it raw raises "can't adapt type 'bytes'",
+                    # which silently killed every project_runs insert below
+                    # (the projects UPDATE above has no bytes, so it looked
+                    # fine while the run history quietly never saved).
+                    doc_bytes = psycopg2.Binary(base64.b64decode(doc["data_base64"]))
                 except Exception:  # noqa: BLE001
                     doc_bytes = None
             row = db_query(

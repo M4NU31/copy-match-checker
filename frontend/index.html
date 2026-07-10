@@ -463,7 +463,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10l · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10m · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -1364,9 +1364,13 @@ async function run(){
     state.pageCount=page.blocks.length;
     state.meta={client:$("#clientName").value.trim(),page:$("#pageName").value.trim(),url,cms};
     renderAll();
-    await saveProjectRun();
+    const saveResult=await saveProjectRun();
     const obs=state.allIssues.filter(i=>i.type==="Observation").length;
-    $("#runNote").textContent=`Done · ${cms} · ${page.ctas.length} CTAs · ${page.links.length} links${obs?` · ${obs} observation${obs===1?"":"s"}`:""}${state.docFile?` · saved as "${state.docFile.name}"`:""}`;
+    // A save failure is appended to the persistent run-note text, not just a
+    // toast — the "QA complete" toast right below would otherwise instantly
+    // replace a "could not save" toast before anyone could read it.
+    const saveWarning=saveResult.ok?"":` · ⚠ could not save to Historial (${saveResult.error})`;
+    $("#runNote").textContent=`Done · ${cms} · ${page.ctas.length} CTAs · ${page.links.length} links${obs?` · ${obs} observation${obs===1?"":"s"}`:""}${state.docFile?` · saved as "${state.docFile.name}"`:""}${saveWarning}`;
     toast(`QA complete — ${countType("all")} issues`);
   }catch(err){
     if(err.message==="Cancelled by user."){$("#runNote").textContent="Cancelled.";toast("QA check cancelled");}
@@ -1374,7 +1378,7 @@ async function run(){
   }finally{state.isRunning=false;state.runCtrl=null;btn.innerHTML=`<svg class="ico ico-sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Run QA Check`;}
 }
 async function saveProjectRun(){
-  if(!state.projectId)return;
+  if(!state.projectId)return {ok:true};
   try{
     let document=null;
     if(state.docFile){
@@ -1385,7 +1389,8 @@ async function saveProjectRun(){
       score:state.score,issues:state.issues,document,ran_by:getUserName(),
     });
     loadRuns();  // refresh the Historial button's count + list in the background
-  }catch(e){toast("Could not save project results: "+(e.message||e));}
+    return {ok:true};
+  }catch(e){return {ok:false,error:e.message||String(e)};}
 }
 
 /* ---------------- dashboard (project grid) + routing ----------------
