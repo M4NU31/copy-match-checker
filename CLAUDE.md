@@ -68,7 +68,10 @@ Two roles:
   UI + document parsing + report logic lives there) and occasionally in the Claude
   prompts inside **`backend/serve.py`** (`COMPARE_SYSTEM_PROMPT`,
   `SEGMENT_SYSTEM_PROMPT`). Does **not** touch the VPS, nginx, systemd, secrets, or
-  Postgres. To run locally they need only Python + Playwright + one API key (below).
+  Postgres. They can test against the live VPS (which already has the API key), or
+  run the backend locally — the latter adds Python + Playwright + an
+  `ANTHROPIC_API_KEY` in their local `backend/.env` (the same key value can be
+  reused; no separate key is required — see below).
 - **Dev / infra** (us): owns the VPS, deployment, nginx, systemd, Postgres, secrets,
   and any backend structural change. Handles everything under "Live deployment".
 
@@ -120,14 +123,18 @@ these must be generated/obtained:
 
 | Secret | For | Lives in | How to generate/obtain | Who |
 |---|---|---|---|---|
-| `ANTHROPIC_API_KEY` | Claude calls (`/ai/*`) | `backend/.env` | Anthropic Console → API Keys → Create Key | dev (prod) + each collaborator (local) |
+| `ANTHROPIC_API_KEY` | Claude calls (`/ai/*`) — needed wherever `serve.py` runs | `backend/.env` (VPS; and a local one only if running the backend locally) | Anthropic Console → API Keys | dev sets the VPS one. A collaborator needs a local one ONLY to run the backend on their machine — and may reuse the same value |
 | `PROXY_SECRET` | Secret nginx injects so `serve.py` accepts `/api/*` | `backend/.env` **and** the nginx `X-Proxy-Secret` line (must match) | `openssl rand -hex 32` | dev |
 | Postgres password | The DB role's password in `DATABASE_URL` | `backend/.env` (`DATABASE_URL`) + set on the DB role | `openssl rand -hex 24`, then `CREATE ROLE ... PASSWORD '…'` | dev |
 | VPS SSH key | Log into the VPS as root | dev's `~/.ssh/` + VPS `~/.ssh/authorized_keys` | `ssh-keygen`; add the pubkey via Hostinger panel or `authorized_keys` | dev |
 | GitHub deploy key | VPS clones/pulls the private repo | VPS `/opt/copymatch/.ssh/github_deploy` + the repo's Deploy keys | `ssh-keygen` on the VPS; add the pubkey to GitHub → repo → Settings → Deploy keys (read-only) | dev |
 
-**A collaborator working locally needs ONLY their own `ANTHROPIC_API_KEY`** in
-`backend/.env`. Everything else is infra the dev sets up once per server.
+**A collaborator needs NO key of their own if they test against the live VPS**
+(it already has the key). They only need an `ANTHROPIC_API_KEY` in their local
+`backend/.env` if they run the backend on their own machine — and it can be the
+**same** key value reused (a separate one is optional, only for isolating usage or
+revoking independently). There is no need for a second/distinct key. Everything
+else is infra the dev sets up once per server.
 
 Rotating: `ANTHROPIC_API_KEY` in the Anthropic Console; `PROXY_SECRET` = a new
 `openssl rand -hex 32` in **both** `backend/.env` and the nginx config, then
