@@ -11,10 +11,12 @@ Wants=network-online.target
 Type=simple
 User=copymatch
 Group=copymatch
-WorkingDirectory=/opt/copymatch
-# .env (ANTHROPIC_API_KEY, ALLOWED_ORIGIN, ...) is read by serve.py itself from
-# its own directory, so no EnvironmentFile= is needed here.
-ExecStart=/opt/copymatch/.venv/bin/python /opt/copymatch/serve.py 5500
+# Monorepo layout: the repo is cloned at /opt/copymatch with backend/ + frontend/
+# subfolders; the venv/browsers live at the repo root (outside the subfolders).
+WorkingDirectory=/opt/copymatch/backend
+# .env (ANTHROPIC_API_KEY, PROXY_SECRET, DATABASE_URL, ...) is read by serve.py
+# itself from its own directory (backend/), so no EnvironmentFile= is needed.
+ExecStart=/opt/copymatch/.venv/bin/python /opt/copymatch/backend/serve.py 5500
 Restart=on-failure
 RestartSec=3
 # Playwright needs a writable cache/home; keep the browser download under the app dir.

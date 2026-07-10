@@ -1,215 +1,164 @@
-# DEPLOY.md — Copy Match Checker (split deploy)
+# DEPLOY.md — Copy Match Checker (single VPS, monorepo)
 
-How to run the tool as **two pieces** instead of one local process:
+The whole tool runs on **one VPS**: nginx serves the static `frontend/` and
+proxies `/api/*` to `serve.py` (`backend/`), which renders pages with Playwright
+and calls Claude. One repo (`copy-match-checker`) with `frontend/` + `backend/`
+subfolders is cloned at `/opt/copymatch`.
 
-- **Front** (`index.html` + CDN libs) — static, on **Cloudflare Pages**.
-- **Backend** (`serve.py`: `/render` + `/ai/*`) — on a **Hostinger VPS KVM**
-  (Ubuntu 24.04 LTS, plain OS), behind nginx + TLS, DNS proxied by Cloudflare.
+> Why a VPS (not shared/Cloud hosting): the backend needs a long-lived Python
+> process and a headless Chrome (Playwright), which require `apt` + root.
+> Hostinger Web/Cloud plans disable `sudo` and jail SSH, so only a VPS works.
 
-This mirrors the eventual production split (front on Cloudflare Pages, backend on
-a droplet with Postgres), so everything here transfers when you migrate.
-
-> **Why a VPS and not Cloud/shared hosting:** the backend needs a long-lived
-> Python process and a headless Chrome (Playwright), which require `apt` + root.
-> Hostinger Web/Cloud plans disable `sudo` and jail SSH to the home dir, so the
-> render + AI core cannot run there. Only a VPS (root) works.
+Current deploy: `http://191.101.235.160`, **HTTP, open access** (dev). See
+"Restricting access" at the end to add auth or a domain+TLS.
 
 ---
 
-## Part A — Backend on the VPS
+## 1. Provision
 
-### A0. Provision
-
-Hostinger hPanel: create a **VPS KVM** (KVM 1, 1 vCPU / 4 GB is enough — do not go
-below 2 GB or headless Chrome may OOM on heavy pages), template **Plain OS ->
-Ubuntu 24.04 LTS** (no control panel). Note the public IP. SSH in as root.
-
-### A1. System packages + app user
+Hostinger VPS KVM (1 vCPU / 4 GB is enough; do not go below 2 GB or headless
+Chrome may OOM), template **Ubuntu 24.04 LTS (plain OS)**. SSH in as root.
 
 ```bash
-apt update && apt upgrade -y
+apt update
 apt install -y python3 python3-venv python3-pip nginx git
 adduser --system --group --home /opt/copymatch copymatch
 ```
 
-### A2. Get the code onto the server
+## 2. Clone the monorepo (private repo -> deploy key)
+
+Generate a key for the app user and add its **public** half to the repo on GitHub
+(Settings -> Deploy keys, read-only):
 
 ```bash
-cd /opt/copymatch
-# clone the BACKEND repo (serve.py + deploy/ + .env.example live at its root).
-git clone <your-backend-repo-url> .
+install -d -o copymatch -g copymatch -m 700 /opt/copymatch/.ssh
+sudo -u copymatch ssh-keygen -t ed25519 -f /opt/copymatch/.ssh/github_deploy -N "" -q
+sudo -u copymatch bash -c 'ssh-keyscan -t ed25519 github.com >> /opt/copymatch/.ssh/known_hosts'
+printf 'Host github.com\n  IdentityFile /opt/copymatch/.ssh/github_deploy\n  IdentitiesOnly yes\n' \
+  > /opt/copymatch/.ssh/config
+chown -R copymatch:copymatch /opt/copymatch/.ssh && chmod 600 /opt/copymatch/.ssh/config
+cat /opt/copymatch/.ssh/github_deploy.pub   # <- add this to the repo's Deploy keys
+```
+
+Then clone into `/opt/copymatch` (which already holds `.ssh`), keeping that dir:
+
+```bash
+sudo -H -u copymatch git clone git@github.com:M4NU31/copy-match-checker.git /tmp/mono
+cp -a /tmp/mono/. /opt/copymatch/ && rm -rf /tmp/mono
 chown -R copymatch:copymatch /opt/copymatch
 ```
 
-### A3. Python venv + Playwright + Chromium
+## 3. Python venv + Playwright + Chromium
+
+The venv and browser download live at the repo root (outside the subfolders):
 
 ```bash
 cd /opt/copymatch
-python3 -m venv .venv
-.venv/bin/pip install --upgrade pip playwright
-# Download Chromium into the app dir (matches PLAYWRIGHT_BROWSERS_PATH in the unit)
-sudo -u copymatch PLAYWRIGHT_BROWSERS_PATH=/opt/copymatch/.playwright \
+sudo -H -u copymatch python3 -m venv .venv
+sudo -H -u copymatch .venv/bin/pip install --upgrade pip playwright
+sudo -H -u copymatch env PLAYWRIGHT_BROWSERS_PATH=/opt/copymatch/.playwright \
   .venv/bin/playwright install chromium
-# Install the OS libraries Chromium needs (needs root; this is the step Cloud
-# hosting cannot do):
-.venv/bin/playwright install-deps chromium
+.venv/bin/playwright install-deps chromium      # needs root (apt)
 ```
 
-> Note: on Linux the code launches bundled Chromium, not the machine's Chrome —
-> `serve.py` already falls back from `channel="chrome"` to plain Chromium.
-
-### A4. Environment file
+## 4. Environment (`backend/.env`)
 
 ```bash
-cp .env.example .env
-nano .env
+cp /opt/copymatch/backend/.env.example /opt/copymatch/backend/.env
+nano /opt/copymatch/backend/.env
 ```
-
-Set:
 
 ```
 ANTHROPIC_API_KEY=sk-ant-...
 ANTHROPIC_MODEL=claude-sonnet-5
-# The front origin(s) — fill in after you know the Pages URL (Part B):
-ALLOWED_ORIGIN=https://<your-pages-project>.pages.dev,https://copyqa.yourdomain.com
+# Empty static root so serve.py never serves repo files; nginx serves the front.
+FRONTEND_DIR=/opt/copymatch/webroot
+# Shared secret nginx injects on /api/* so serve.py's gate passes. openssl rand -hex 32
+PROXY_SECRET=<random-hex>
+# Local-only Postgres (Phase 2; serve.py does not use it yet).
+DATABASE_URL=postgresql://copymatch:<pw>@localhost:5432/copymatch
 ```
 
-`chown copymatch:copymatch .env && chmod 600 .env`
+```bash
+install -d -o copymatch -g copymatch -m 755 /opt/copymatch/webroot
+chown copymatch:copymatch /opt/copymatch/backend/.env && chmod 600 /opt/copymatch/backend/.env
+```
 
-### A5. systemd service
+## 5. systemd service
 
 ```bash
-cp deploy/copymatch.service /etc/systemd/system/copymatch.service
+cp /opt/copymatch/backend/deploy/copymatch.service /etc/systemd/system/copymatch.service
 systemctl daemon-reload
 systemctl enable --now copymatch
-systemctl status copymatch          # should be active (running)
-journalctl -u copymatch -f          # watch startup log; confirm key + Playwright + CORS lines
+systemctl status copymatch        # active (running)
 ```
 
-The backend now listens on `127.0.0.1:5500`.
-
-### A6. nginx + TLS
-
-Point a DNS record `api.yourdomain.com` at the VPS IP first (Part C covers the
-Cloudflare side). Then:
+## 6. nginx (serve front + proxy /api/*)
 
 ```bash
-cp deploy/nginx-copymatch.conf /etc/nginx/sites-available/copymatch
-# edit server_name to your real api subdomain:
+cp /opt/copymatch/backend/deploy/nginx-copymatch.conf /etc/nginx/sites-available/copymatch
+# put the real PROXY_SECRET into the X-Proxy-Secret line:
 nano /etc/nginx/sites-available/copymatch
-ln -s /etc/nginx/sites-available/copymatch /etc/nginx/sites-enabled/
+ln -sf /etc/nginx/sites-available/copymatch /etc/nginx/sites-enabled/copymatch
+rm -f /etc/nginx/sites-enabled/default
+# nginx (www-data) must read the front:
+chmod o+rx /opt/copymatch && chmod -R o+rX /opt/copymatch/frontend
 nginx -t && systemctl reload nginx
-apt install -y certbot python3-certbot-nginx
-certbot --nginx -d api.yourdomain.com   # adds the 443 block + auto-renew
 ```
 
-Smoke test from your laptop:
+Smoke test:
 
 ```bash
-curl -i "https://api.yourdomain.com/render?url=https://example.com" | head -20
+curl -s -o /dev/null -w "%{http_code}\n" http://<vps-ip>/                       # 200 (front)
+curl -s "http://<vps-ip>/api/render?url=https://example.com" | grep -o '<title>.*</title>'
 ```
 
-You should get HTML back (or a clear JSON error if something is misconfigured).
-
-### A7. Updating the backend later
+## 7. Firewall
 
 ```bash
-cd /opt/copymatch && sudo -u copymatch git pull
-# if serve.py deps changed: .venv/bin/pip install ...
+ufw allow OpenSSH && ufw allow 80/tcp && ufw allow 443/tcp && ufw --force enable
+```
+
+Port 5500 (serve.py) is not opened, so serve.py is reachable only via nginx.
+
+## 8. Postgres (Phase 2 data layer — installed, not used yet)
+
+```bash
+apt install -y postgresql postgresql-contrib
+sudo -u postgres psql -c "CREATE ROLE copymatch LOGIN PASSWORD '<pw>';"
+sudo -u postgres psql -c "CREATE DATABASE copymatch OWNER copymatch;"
+sudo -u postgres psql -d copymatch -c "ALTER SCHEMA public OWNER TO copymatch;"
+```
+
+Listens on localhost only (not internet-exposed); ufw blocks 5432 anyway. The
+connection string goes in `backend/.env` as `DATABASE_URL`.
+
+---
+
+## Updating
+
+```bash
+cd /opt/copymatch && sudo -H -u copymatch git pull
+# if backend deps changed: sudo -H -u copymatch .venv/bin/pip install ...
 systemctl restart copymatch
+# front changes are static; git pull already updated /opt/copymatch/frontend
 ```
 
----
+## Restricting access (currently open)
 
-## Part B — Front on Cloudflare Pages
+No domain/TLS/auth yet — anyone with the IP can use it and spend the Claude key.
+To lock it down, any of:
 
-The front is pure static (`index.html` loads pdf.js / mammoth / JSZip from cdnjs).
-It needs to know the backend origin via one `<meta>` tag.
+- **Basic Auth** (simplest, no domain): `apt install apache2-utils`,
+  `htpasswd -c /etc/nginx/.htpasswd <user>`, then add to the nginx `server` block:
+  `auth_basic "Copy Match Checker"; auth_basic_user_file /etc/nginx/.htpasswd;`
+- **Firewall allowlist:** `ufw` allow 80 only from specific office/home IPs.
+- **Domain + TLS + Cloudflare Access:** point a domain here, `certbot --nginx`,
+  and put it behind Cloudflare Access for email-based auth.
 
-### B1. Point the front at the backend
+## Local development
 
-In the **frontend repo**, edit the head of `index.html`:
-
-```html
-<meta name="api-base" content="https://api.yourdomain.com" />
-```
-
-This is safe to commit: `localhost`/`file://` always force same-origin, so local
-dev with `serve.py` keeps working regardless of what the meta says.
-
-### B2. Create the Pages project
-
-Cloudflare dashboard -> Workers & Pages -> Create -> Pages -> Connect to Git
-(or Direct Upload of just `index.html`).
-
-- **Build command:** *(none)* — there is no build step.
-- **Build output directory:** the repo root (it serves `index.html`).
-- Deploy. You get `https://<project>.pages.dev`. Optionally add a custom domain
-  `copyqa.yourdomain.com` under the Pages project's Custom domains.
-
-### B3. Register the front origin with the backend
-
-Put the exact Pages origin(s) into `ALLOWED_ORIGIN` in the VPS `.env` (A4) and
-`systemctl restart copymatch`. The origin must match byte-for-byte (scheme +
-host, no trailing slash), e.g. `https://copyqa.yourdomain.com`.
-
----
-
-## Part C — Cloudflare (DNS + Access auth)
-
-### C1. DNS
-
-In the Cloudflare zone for `yourdomain.com`:
-
-- `A  api      -> <VPS IP>`   (Proxied / orange cloud)
-- `copyqa` -> managed automatically when you add it as a Pages custom domain.
-
-### C2. Access policies (who can use the tool)
-
-Zero Trust -> Access -> Applications. Add a **self-hosted application** and an
-allowlist policy (e.g. `emails ending in @punchteam.com`) for each hostname:
-
-1. `copyqa.yourdomain.com` (the front) — gates who can load the tool at all.
-2. `api.yourdomain.com` (the backend) — gates the API so nobody but your team can
-   spend the Claude key.
-
-### C3. Make the cross-origin API calls work under Access
-
-Because the front and API are on different hostnames, the browser calls the API
-cross-origin **with credentials** (the front already sends `credentials:"include"`,
-and `serve.py` echoes the exact origin + `Access-Control-Allow-Credentials` when
-`ALLOWED_ORIGIN` is set). For the Cloudflare Access cookie to ride along, in the
-**API application's** Access settings enable **CORS**:
-
-- Allowed origins: the front origin (`https://copyqa.yourdomain.com`)
-- Allow credentials: **on**
-- Allowed methods: `GET, POST, OPTIONS`
-- Allowed headers: `Content-Type`
-
-> **If the cross-origin cookie gives you trouble** (an XHR 302-redirecting to the
-> Access login on first call is the classic symptom), use the bulletproof
-> alternative: serve the API under the **same hostname** as the front via a
-> Cloudflare Pages Function proxy at `/api/*`, and set the meta to
-> `content="/api"`. One Access app, same-origin fetches, zero CORS. The code
-> already supports this (`API_BASE="/api"`); only the Pages Function proxy needs
-> adding.
-
----
-
-## Verifying the whole chain
-
-1. Open `https://copyqa.yourdomain.com` -> Cloudflare Access login -> the tool.
-2. Confirm the footer build tag is the version you deployed (hard-refresh
-   `Ctrl+Shift+R` if stale).
-3. Upload an approved PDF/DOCX -> "Loaded N copy blocks".
-4. Enter a page URL -> **Run QA Check**. If render + compare return results, the
-   split is working end to end. A CORS error in the browser console means
-   `ALLOWED_ORIGIN` / Access CORS (C3) is not matching your front origin.
-
----
-
-## Local development still works unchanged
-
-`py serve.py` (Windows) or `python3 serve.py` (Linux/Mac) + open
-`http://localhost:5500`. On localhost the front forces same-origin, so it ignores
-the `api-base` meta and talks to the local `serve.py` exactly as before.
+`cd backend && python3 serve.py` (Windows: `py serve.py`), open
+`http://localhost:5500`. On localhost the front forces same-origin and serve.py
+serves `../frontend/index.html`, so the whole tool runs from one process with no
+nginx and no secret.
