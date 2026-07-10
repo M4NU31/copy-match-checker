@@ -437,9 +437,13 @@ def init_db():
                     issues JSONB NOT NULL DEFAULT '[]'::jsonb,
                     doc_filename TEXT,
                     doc_content_type TEXT,
-                    doc_bytes BYTEA
+                    doc_bytes BYTEA,
+                    ran_by TEXT NOT NULL DEFAULT ''
                 );
             """)
+            # ADD COLUMN IF NOT EXISTS so an already-deployed table (created
+            # before ran_by existed) picks it up without a manual migration.
+            cur.execute("ALTER TABLE project_runs ADD COLUMN IF NOT EXISTS ran_by TEXT NOT NULL DEFAULT '';")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_project_runs_project_id ON project_runs(project_id, ran_at DESC);")
         conn.commit()
     finally:
@@ -680,6 +684,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             doc = payload.get("document") or {}
             doc_filename = doc.get("filename")
             doc_content_type = doc.get("content_type")
+            ran_by = (payload.get("ran_by") or "").strip()
             doc_bytes = None
             if doc.get("data_base64"):
                 try:
@@ -698,10 +703,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             # history/version trail. Never updated afterward, unlike `projects`.
             db_query(
                 """INSERT INTO project_runs (project_id, site_name, page_name, page_url, score, issues,
-                    doc_filename, doc_content_type, doc_bytes)
-                   VALUES (%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s)""",
+                    doc_filename, doc_content_type, doc_bytes, ran_by)
+                   VALUES (%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s,%s)""",
                 (pid, site_name, page_name, page_url, score, json.dumps(issues),
-                 doc_filename, doc_content_type, doc_bytes))
+                 doc_filename, doc_content_type, doc_bytes, ran_by))
             self._send(200, "application/json", json.dumps(_project_full(row)).encode("utf-8"))
         except Exception as e:  # noqa: BLE001
             self._send(502, "application/json", json.dumps({"error": str(e)}).encode("utf-8"))
@@ -713,15 +718,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._db_unavailable()
         try:
             rows = db_query(
-                "SELECT id, ran_at, score, issues, doc_filename FROM project_runs "
+                "SELECT id, ran_at, score, issues, doc_filename, ran_by FROM project_runs "
                 "WHERE project_id=%s ORDER BY ran_at DESC", (pid,), fetch="all")
             runs = []
-            for (rid, ran_at, score, issues, doc_filename) in rows:
+            for (rid, ran_at, score, issues, doc_filename, ran_by) in rows:
                 issues = issues or []
                 total = len([i for i in issues if isinstance(i, dict) and i.get("type") != "Observation"])
                 runs.append({
                     "id": rid, "ran_at": ran_at.isoformat() if ran_at else None,
                     "score": score, "issues_total": total, "doc_filename": doc_filename,
+                    "ran_by": ran_by or None,
                 })
             self._send(200, "application/json", json.dumps({"runs": runs}).encode("utf-8"))
         except Exception as e:  # noqa: BLE001
@@ -734,15 +740,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._db_unavailable()
         try:
             row = db_query(
-                "SELECT id, ran_at, site_name, page_name, page_url, score, issues, doc_filename "
+                "SELECT id, ran_at, site_name, page_name, page_url, score, issues, doc_filename, ran_by "
                 "FROM project_runs WHERE id=%s AND project_id=%s", (run_id, pid), fetch="one")
             if not row:
                 return self._send(404, "application/json", json.dumps({"error": "Run not found"}).encode("utf-8"))
-            (rid, ran_at, site_name, page_name, page_url, score, issues, doc_filename) = row
+            (rid, ran_at, site_name, page_name, page_url, score, issues, doc_filename, ran_by) = row
             self._send(200, "application/json", json.dumps({
                 "id": rid, "ran_at": ran_at.isoformat() if ran_at else None,
                 "site_name": site_name, "page_name": page_name, "page_url": page_url,
                 "score": score, "issues": issues or [], "doc_filename": doc_filename,
+                "ran_by": ran_by or None,
             }).encode("utf-8"))
         except Exception as e:  # noqa: BLE001
             self._send(502, "application/json", json.dumps({"error": str(e)}).encode("utf-8"))
