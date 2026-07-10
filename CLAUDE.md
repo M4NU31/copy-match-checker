@@ -79,8 +79,9 @@ Golden rules for the collaborator:
 
 - Edit `frontend/index.html`; **bump the build marker** in the footer every change.
 - Test locally first (`cd backend && python serve.py`, open `http://localhost:5500`).
-- Commit + push to `main`. **Deploying to the live server is a dev step** (a dev runs
-  `git pull` on the VPS) — pushing does NOT auto-deploy.
+- Commit + push to `main`. **A push to `main` auto-deploys to the VPS** via GitHub
+  Actions (it SSHes in and runs `git pull` + restart). No manual step; give it
+  ~20-30s, then hard-refresh the live URL and check the build marker.
 - Never commit real secrets. The only one needed locally is your own
   `ANTHROPIC_API_KEY` in `backend/.env` (gitignored).
 
@@ -109,10 +110,13 @@ http://191.101.235.160 (VPS, /opt/copymatch)
               └── (Postgres local, Phase 2)
 ```
 
-**Deploying a change** (dev step): push to `main`, then on the VPS
-`cd /opt/copymatch && sudo -H -u copymatch git pull && sudo systemctl restart copymatch`
-(front changes are static so the pull is enough; restart only matters for `backend/`
-changes). Full runbook: `backend/DEPLOY.md`.
+**Deploying a change** is automatic: a push to `main` triggers the GitHub Actions
+workflow `.github/workflows/deploy.yml`, which SSHes to the VPS with a restricted
+key (authorized_keys `command="..."`, so it can ONLY run the deploy) and executes
+`/usr/local/bin/deploy-copymatch.sh` = `git pull --ff-only` + `systemctl restart
+copymatch`. It needs the repo secret `VPS_SSH_KEY` (see the secrets table). Manual
+fallback (any dev with SSH): `cd /opt/copymatch && sudo -H -u copymatch git pull &&
+sudo systemctl restart copymatch`. Full runbook: `backend/DEPLOY.md`.
 
 ## Keys, secrets & credentials
 
@@ -128,6 +132,7 @@ these must be generated/obtained:
 | Postgres password | The DB role's password in `DATABASE_URL` | `backend/.env` (`DATABASE_URL`) + set on the DB role | `openssl rand -hex 24`, then `CREATE ROLE ... PASSWORD '…'` | dev |
 | VPS SSH key | Log into the VPS as root | dev's `~/.ssh/` + VPS `~/.ssh/authorized_keys` | `ssh-keygen`; add the pubkey via Hostinger panel or `authorized_keys` | dev |
 | GitHub deploy key | VPS clones/pulls the private repo | VPS `/opt/copymatch/.ssh/github_deploy` + the repo's Deploy keys | `ssh-keygen` on the VPS; add the pubkey to GitHub → repo → Settings → Deploy keys (read-only) | dev |
+| `VPS_SSH_KEY` (Actions) | GitHub Actions auto-deploy on push to main | repo **Secrets** (private key) + VPS root `authorized_keys` (public, `command=`-restricted to the deploy script) | `ssh-keygen`; pubkey → VPS root `authorized_keys` with `command="/usr/local/bin/deploy-copymatch.sh"`; private key → repo → Settings → Secrets → `VPS_SSH_KEY` | dev |
 
 **A collaborator needs NO key of their own if they test against the live VPS**
 (it already has the key). They only need an `ANTHROPIC_API_KEY` in their local
