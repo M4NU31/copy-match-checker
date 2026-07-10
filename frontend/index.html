@@ -58,17 +58,9 @@ body{
 /* ---------- header ---------- */
 .topbar{display:flex; justify-content:space-between; align-items:flex-start; gap:20px; margin-bottom:26px;}
 .brand{display:flex; gap:15px; align-items:center;}
-.brand-mark{
-  width:48px; height:48px; border-radius:13px; flex:none; display:grid; place-items:center;
-  background:linear-gradient(135deg,var(--pink),#b30e33); color:#fff;
-  box-shadow:0 8px 24px rgba(255,20,73,.35);
-}
-.brand-mark .ico{width:24px; height:24px; stroke-width:2.2;}
 .topbar h1{margin:0; font-size:25px; letter-spacing:-.4px;}
 .subtitle{margin:4px 0 0; color:var(--text-2); white-space:nowrap;}
 .brand-side{display:flex; align-items:center; gap:11px;}
-.kit-tag{font-size:11px; text-transform:uppercase; letter-spacing:1.2px; color:var(--text-2);
-  border:1px solid var(--border-2); padding:6px 11px; border-radius:30px;}
 
 /* ---------- cards ---------- */
 .card{background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:22px;}
@@ -223,10 +215,12 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .dash-search .ico{position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--muted);}
 .dash-search input{padding-left:38px;}
 .dash-toolbar .btn{flex:none; white-space:nowrap;}
-.proj-grid{display:grid; grid-template-columns:repeat(auto-fill,250px); gap:16px;}
+.proj-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:16px;}
+@media (max-width:900px){.proj-grid{grid-template-columns:repeat(2,1fr);}}
+@media (max-width:560px){.proj-grid{grid-template-columns:1fr;}}
 .proj-card{background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:18px;
   cursor:pointer; transition:transform .15s ease, border-color .15s ease, box-shadow .15s ease; text-align:left;
-  width:250px; height:250px; display:flex; flex-direction:column; color:var(--text);}
+  aspect-ratio:1; width:100%; display:flex; flex-direction:column; color:var(--text);}
 .proj-card:hover{transform:translateY(-3px); border-color:var(--border-2); box-shadow:0 10px 26px rgba(0,0,0,.4);}
 .proj-card.add-card{align-items:center; justify-content:center; border-style:dashed; border-color:var(--border-2);
   color:var(--muted); background:transparent;}
@@ -320,16 +314,12 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
   <!-- ============ HEADER ============ -->
   <header class="topbar">
     <div class="brand">
-      <div class="brand-mark">
-        <svg width="23" height="21" viewBox="0 0 21 19" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1.6875 1.6875V16.3125H9.98438C10.4062 16.9805 10.9688 17.5781 11.6016 18H1.6875H0V16.3125V1.6875V0H1.6875H11.8125H13.5V1.6875V6.99609C12.8672 7.17188 12.3047 7.41797 11.8125 7.76953V1.6875H1.6875ZM10.125 7.875V9.38672C10.0547 9.45703 10.0195 9.52734 9.98438 9.5625H9.28125H4.21875H3.375V7.875H4.21875H9.28125H10.125ZM4.21875 4.5H9.28125H10.125V6.1875H9.28125H4.21875H3.375V4.5H4.21875ZM4.21875 11.25H5.90625H6.75V12.9375H5.90625H4.21875H3.375V11.25H4.21875ZM20.25 12.9375C20.25 14.7656 19.2656 16.418 17.7188 17.332C16.1367 18.2461 14.2031 18.2461 12.6562 17.332C11.0742 16.418 10.125 14.7656 10.125 12.9375C10.125 11.1445 11.0742 9.49219 12.6562 8.57812C14.2031 7.66406 16.1367 7.66406 17.7188 8.57812C19.2656 9.49219 20.25 11.1445 20.25 12.9375ZM17.9297 11.8125L17.1562 11.0391L16.7344 11.4258L14.625 13.5703L13.6055 12.5508L13.2188 12.1641L12.4102 12.9375L12.7969 13.3594L14.2031 14.7656L14.625 15.1523L15.0117 14.7656L17.543 12.2344L17.9297 11.8125Z" fill="white"/></svg>
-      </div>
       <div>
-        <h1>Copy Match Checker v0.5</h1>
+        <h1>Copy Match v0.5</h1>
         <p class="subtitle">Compare approved copy (PDF or Word) against the content implemented on a live or staging page.</p>
       </div>
     </div>
     <div class="brand-side">
-      <span class="kit-tag">Punch Toolkit</span>
       <button class="btn btn-ghost" id="howBtn">
         <svg class="ico ico-sm" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
         How it works
@@ -471,7 +461,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10d · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10e · Punch Toolkit</span>
   </footer>
 </div>
 
