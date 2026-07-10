@@ -438,7 +438,7 @@ def init_db():
                     doc_filename TEXT,
                     doc_content_type TEXT,
                     doc_bytes BYTEA,
-                    ran_by TEXT NOT NULL DEFAULT ''
+                    ran_by TEXT NOT NULL DEFAULT ''  -- free-text name (no auth yet); swap for a user_id FK once real accounts ship
                 );
             """)
             # ADD COLUMN IF NOT EXISTS so an already-deployed table (created

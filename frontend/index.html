@@ -463,7 +463,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10k · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10l · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -559,7 +559,10 @@ const apiPatch=(path,body)=>apiCall("PATCH",path,body);
    block the UI thread on a multi-MB file. */
 /* There's no login system in this tool (open access, no auth yet — see
    CLAUDE.md), so "who ran this" is a name the browser remembers locally
-   (localStorage), sent along with every run and shown in the Historial. */
+   (localStorage), sent along with every run and shown in the Historial.
+   TEMPORARY: real user accounts are planned for launch — once that ships,
+   ran_by should come from the logged-in session instead, and this button
+   (plus USER_NAME_KEY/getUserName) can be deleted. */
 const USER_NAME_KEY="cmc_user_name";
 const getUserName=()=>localStorage.getItem(USER_NAME_KEY)||"";
 function refreshUserNameLabel(){const n=getUserName();$("#userNameLabel").textContent=n||"Set your name";}
