@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Copy Match Checker · Punch Toolkit</title>
+
+<!-- Backend origin for /render + /ai/* when the front is deployed standalone
+     (e.g. Cloudflare Pages) and the backend lives on its own origin. Leave the
+     content empty for same-origin/local dev; set it to the API origin
+     ("https://api.example.com") or a same-origin proxy path ("/api") in prod.
+     Ignored on localhost/file:// so local dev via serve.py never breaks.
+     See DEPLOY.md. -->
+<meta name="api-base" content="/api" />
+
+<!-- Document parsers (PDF + Word) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<style>
+:root{
+  --bg:#0a0a0c;
+  --bg-soft:#0f0e11;
+  --card:#161519;
+  --card-2:#1c1b20;
+  --input:#0c0b0e;
+  --border:#28272e;
+  --border-2:#3a3842;
+  --text:#f4f4f6;
+  --text-2:#a3a2ab;
+  --muted:#6a6973;
+  --pink:#ff1449;
+  --pink-2:#ff476f;
+  --pink-dim:rgba(255,20,73,.10);
+  --amber:#f5a524;
+  --slate:#7c8aa5;
+  --blue:#5b8cff;
+  --green:#2fd6a6;
+  --r:14px; --r-sm:10px;
+}
+*{box-sizing:border-box;}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;
+}
+.app{max-width:min(1640px,96vw); margin:0 auto; padding:50px 30px 70px;}
+.hidden{display:none !important;}
+.muted{color:var(--muted);} .small{font-size:12px;}
+
+/* icons */
+.ico{width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:2;
+  stroke-linecap:round; stroke-linejoin:round; flex:none;}
+.ico-sm{width:15px; height:15px;}
+.ico-lg{width:22px; height:22px;}
+
+/* ---------- header ---------- */
+.topbar{display:flex; justify-content:space-between; align-items:flex-start; gap:20px; margin-bottom:26px;}
+.brand{display:flex; gap:15px; align-items:center;}
+.brand-mark{
+  width:48px; height:48px; border-radius:13px; flex:none; display:grid; place-items:center;
+  background:linear-gradient(135deg,var(--pink),#b30e33); color:#fff;
+  box-shadow:0 8px 24px rgba(255,20,73,.35);
+}
+.brand-mark .ico{width:24px; height:24px; stroke-width:2.2;}
+.topbar h1{margin:0; font-size:25px; letter-spacing:-.4px;}
+.subtitle{margin:4px 0 0; color:var(--text-2); white-space:nowrap;}
+.brand-side{display:flex; align-items:center; gap:11px;}
+.kit-tag{font-size:11px; text-transform:uppercase; letter-spacing:1.2px; color:var(--text-2);
+  border:1px solid var(--border-2); padding:6px 11px; border-radius:30px;}
+
+/* ---------- cards ---------- */
+.card{background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:22px;}
+.grid-2{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:18px;}
+.card-head{display:flex; align-items:center; gap:11px; margin-bottom:18px;}
+.card-head .num{
+  width:26px; height:26px; border-radius:8px; background:var(--pink-dim); color:var(--pink);
+  display:grid; place-items:center; font-weight:800; font-size:13px; border:1px solid rgba(255,20,73,.3);
+}
+.card-head h2{margin:0; font-size:16px; display:flex; align-items:center; gap:8px;}
+.card-head h2 .ico{color:var(--pink);}
+.card-head .hint{margin-left:auto; color:var(--muted); font-size:12px;}
+
+/* ---------- fields ---------- */
+.field{display:flex; flex-direction:column; gap:6px; margin-bottom:14px;}
+.field>span{font-size:12px; color:var(--text-2); font-weight:600; display:flex; align-items:center; gap:6px;}
+.field-row{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+input[type=text],select,textarea{
+  background:var(--input); color:var(--text); border:1px solid var(--border-2);
+  border-radius:var(--r-sm); padding:11px 12px; font-size:14px; font-family:inherit; width:100%;
+  outline:none; transition:border-color .15s, box-shadow .15s;
+}
+input[type=text]:focus,select:focus,textarea:focus{
+  border-color:var(--pink); box-shadow:0 0 0 3px rgba(255,20,73,.16);
+}
+textarea{resize:vertical; line-height:1.6;}
+select{appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='none' stroke='%23a3a2ab' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='3 5 7 9 11 5'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; padding-right:34px;}
+.url-row{position:relative;}
+.url-row .url-ico{position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--muted);}
+.url-row input{padding-left:38px;}
+
+/* ---------- dropzone ---------- */
+.dropzone{border:1.5px dashed var(--border-2); border-radius:12px; padding:26px; text-align:center;
+  cursor:pointer; transition:.15s; background:var(--input);}
+.dropzone:hover{border-color:var(--pink); background:var(--pink-dim);}
+.dropzone.drag{border-color:var(--pink); background:var(--pink-dim);}
+.drop-icon{color:var(--pink); display:flex; justify-content:center; margin-bottom:8px;}
+.drop-icon .ico{width:30px; height:30px;}
+.dropzone p{margin:5px 0 2px;}
+.file-chip{display:flex; align-items:center; gap:12px; text-align:left; background:var(--card-2);
+  border:1px solid var(--border-2); border-radius:10px; padding:12px 14px;}
+.file-chip .file-ico{color:var(--pink);}
+.file-chip>div:nth-child(2){flex:1;}
+.x{background:transparent; border:none; color:var(--muted); cursor:pointer; padding:4px; display:grid; place-items:center;}
+.x:hover{color:var(--pink);}
+.status{margin-top:13px; font-size:13px; color:var(--text-2); background:var(--input);
+  border:1px solid var(--border); border-radius:9px; padding:10px 12px; display:flex; align-items:center; gap:8px;}
+.status.ok{color:var(--green); border-color:rgba(47,214,166,.3);}
+.status.err{color:var(--pink-2); border-color:rgba(255,20,73,.3);}
+
+/* ---------- scope ---------- */
+.scope{border:1px solid var(--border); border-radius:11px; padding:13px 15px; margin:4px 0 16px;
+  display:flex; flex-wrap:wrap; gap:8px;}
+.scope legend{font-size:12px; color:var(--text-2); font-weight:600; padding:0 6px; display:flex; align-items:center; gap:6px;}
+.chk{display:flex; align-items:center; gap:7px; font-size:13px; cursor:pointer; color:var(--text-2);
+  background:var(--input); border:1px solid var(--border); border-radius:8px; padding:7px 11px; transition:.15s;}
+.chk:hover{border-color:var(--border-2);}
+.chk input{accent-color:var(--pink); width:15px; height:15px;}
+.chk input:checked + span{color:var(--text);}
+
+/* ---------- buttons ---------- */
+.btn{border:1px solid transparent; border-radius:10px; padding:11px 16px; font-size:14px; font-weight:600;
+  cursor:pointer; font-family:inherit; display:inline-flex; align-items:center; gap:8px; justify-content:center; transition:.15s;}
+.btn-primary{background:var(--pink); color:#fff;}
+.btn-primary:hover{background:var(--pink-2); box-shadow:0 8px 22px rgba(255,20,73,.4);}
+.btn-lg{width:100%; padding:13px; font-size:15px;}
+.btn-outline{background:transparent; border-color:var(--border-2); color:var(--text);}
+.btn-outline:hover{border-color:var(--pink); color:var(--pink-2);}
+.btn-ghost{background:var(--card); border-color:var(--border); color:var(--text-2);}
+.btn-ghost:hover{color:var(--text); border-color:var(--border-2);}
+.run-note{margin-top:9px; text-align:center; min-height:16px;}
+
+/* ---------- summary ---------- */
+.section-title{display:flex; align-items:center; gap:9px; font-size:16px; font-weight:700; margin:0 0 14px;}
+.section-title .ico{color:var(--pink);}
+.summary{display:grid; grid-template-columns:repeat(7,1fr); gap:10px; margin-bottom:18px;}
+.stat{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:18px 12px; text-align:center;}
+.stat .num{font-size:27px; font-weight:800; line-height:1; color:#FF1449;}
+.stat .lbl{font-size:11.5px; font-weight:500; color:#E8E2DF; margin-top:8px;}
+.tab-stat{cursor:pointer; transition:transform .18s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease;}
+.tab-stat:hover{transform:translateY(-3px); border-color:var(--border-2); box-shadow:0 8px 20px rgba(0,0,0,.4);}
+.tab-stat.active{border-color:var(--pink); background:var(--pink-dim);}
+.c-total{color:var(--pink-2);} .c-red{color:var(--pink);} .c-amber{color:var(--amber);}
+.c-slate{color:var(--slate);} .c-green{color:var(--green);}
+
+/* ---------- tabs + table ---------- */
+.tabs{display:flex; gap:4px; flex-wrap:wrap; border-bottom:1px solid var(--border); margin-bottom:4px;}
+.tab{background:transparent; border:none; color:var(--text-2); padding:10px 12px; cursor:pointer;
+  font-size:13px; font-weight:600; border-bottom:2px solid transparent; display:flex; gap:7px; align-items:center;}
+.tab:hover{color:var(--text);}
+.tab.active{color:var(--pink-2); border-bottom-color:var(--pink);}
+.count{background:var(--card-2); border-radius:20px; padding:1px 8px; font-size:11px; color:var(--text-2);}
+.table-wrap{overflow-x:auto;}
+table{width:100%; border-collapse:collapse; font-size:13px; table-layout:fixed;}
+th{text-align:left; color:var(--muted); font-weight:600; font-size:11px; text-transform:uppercase;
+  letter-spacing:.5px; padding:12px; border-bottom:1px solid var(--border);}
+td{padding:13px 12px; border-bottom:1px solid var(--border); vertical-align:top;
+  word-break:break-word; overflow-wrap:anywhere;}
+tbody tr:hover td{background:rgba(255,255,255,.014);}
+.cell-approved{color:var(--text-2);} .cell-current{color:var(--text);}
+.empty-dash{color:var(--muted);}
+/* resolved (checked) rows: dimmed, sorted to the bottom */
+tr.done td{opacity:.4;}
+tr.done td.done-cell{opacity:1;}
+tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
+.done-cell{text-align:center;}
+.done-btn{background:transparent; color:#FF1449; border:1px solid #FF1449; border-radius:8px; font-size:11px;
+  font-weight:600; padding:5px 12px; cursor:pointer; line-height:1.2; white-space:nowrap; transition:.15s;}
+.done-btn:hover{background:rgba(255,20,73,.10);}
+.done-btn.undo{color:#15a37a; border-color:#15a37a;}
+.done-btn.undo:hover{background:rgba(21,163,122,.12);}
+.col-done{width:112px;} .col-sec{width:150px;} .col-type{width:124px;} .col-view{width:54px;}
+.view-cell{text-align:center;}
+.type-pill{font-size:11px; padding:2px 8px; border-radius:6px; white-space:nowrap;
+  background:var(--card-2); border:1px solid var(--border-2); color:var(--text-2);}
+.table-foot{display:flex; justify-content:space-between; align-items:center; margin-top:14px;}
+.export-btns{display:flex; gap:8px;}
+.no-rows{text-align:center; color:var(--muted); padding:34px;}
+
+/* ---------- footer / modal / toast ---------- */
+.appfoot{display:flex; justify-content:space-between; margin-top:26px; padding-top:16px; border-top:1px solid var(--border);}
+.modal{position:fixed; inset:0; background:rgba(0,0,0,.65); display:grid; place-items:center; z-index:50; padding:20px;}
+.modal-box{background:var(--card); border:1px solid var(--border-2); border-radius:var(--r); padding:24px; max-width:560px; width:100%;}
+.modal-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;}
+.modal-head h3{margin:0; display:flex; gap:9px; align-items:center;}
+.modal-head h3 .ico{color:var(--pink);}
+.how-steps{padding-left:20px; line-height:1.85; color:var(--text-2);}
+.how-steps strong{color:var(--text);}
+/* locate-in-document preview */
+.locate-box{max-width:900px;}
+.locate-sub{margin:-4px 0 10px;}
+.locate-body{max-height:72vh; overflow:auto; background:var(--input); border:1px solid var(--border); border-radius:10px; padding:12px;}
+.locate-body canvas{width:100%; height:auto; display:block; border-radius:6px;}
+.doc-text{white-space:pre-wrap; font-size:13px; line-height:1.75; color:var(--text-2); font-family:ui-monospace,monospace;}
+.doc-hit{background:rgba(255,20,73,.32); color:#fff; border-radius:3px; padding:1px 2px;}
+.locate-btn{background:transparent; border:none; color:#FF1449; cursor:pointer; padding:2px; display:inline-flex; vertical-align:-2px;}
+.locate-btn:hover{color:var(--pink-2);}
+.locate-btn .ico{width:15px; height:15px;}
+.toast{position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--card-2);
+  border:1px solid var(--border-2); color:var(--text); padding:12px 20px; border-radius:10px; z-index:60;
+  box-shadow:0 8px 30px rgba(0,0,0,.5); display:flex; align-items:center; gap:9px;}
+.spinner{width:16px; height:16px; border:2px solid rgba(255,255,255,.3); border-top-color:#fff;
+  border-radius:50%; display:inline-block; animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+@media (max-width:1000px){.grid-2{grid-template-columns:1fr;} .summary{grid-template-columns:repeat(4,1fr);}}
+@media (max-width:560px){.summary{grid-template-columns:repeat(2,1fr);} .field-row{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ HEADER ============ -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg width="23" height="21" viewBox="0 0 21 19" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1.6875 1.6875V16.3125H9.98438C10.4062 16.9805 10.9688 17.5781 11.6016 18H1.6875H0V16.3125V1.6875V0H1.6875H11.8125H13.5V1.6875V6.99609C12.8672 7.17188 12.3047 7.41797 11.8125 7.76953V1.6875H1.6875ZM10.125 7.875V9.38672C10.0547 9.45703 10.0195 9.52734 9.98438 9.5625H9.28125H4.21875H3.375V7.875H4.21875H9.28125H10.125ZM4.21875 4.5H9.28125H10.125V6.1875H9.28125H4.21875H3.375V4.5H4.21875ZM4.21875 11.25H5.90625H6.75V12.9375H5.90625H4.21875H3.375V11.25H4.21875ZM20.25 12.9375C20.25 14.7656 19.2656 16.418 17.7188 17.332C16.1367 18.2461 14.2031 18.2461 12.6562 17.332C11.0742 16.418 10.125 14.7656 10.125 12.9375C10.125 11.1445 11.0742 9.49219 12.6562 8.57812C14.2031 7.66406 16.1367 7.66406 17.7188 8.57812C19.2656 9.49219 20.25 11.1445 20.25 12.9375ZM17.9297 11.8125L17.1562 11.0391L16.7344 11.4258L14.625 13.5703L13.6055 12.5508L13.2188 12.1641L12.4102 12.9375L12.7969 13.3594L14.2031 14.7656L14.625 15.1523L15.0117 14.7656L17.543 12.2344L17.9297 11.8125Z" fill="white"/></svg>
+      </div>
+      <div>
+        <h1>Copy Match Checker</h1>
+        <p class="subtitle">Compare approved copy (PDF or Word) against the content implemented on a live or staging page.</p>
+      </div>
+    </div>
+    <div class="brand-side">
+      <span class="kit-tag">Punch Toolkit</span>
+      <button class="btn btn-ghost" id="howBtn">
+        <svg class="ico ico-sm" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        How it works
+      </button>
+    </div>
+  </header>
+
+  <!-- ============ INPUTS ============ -->
+  <section class="grid-2">
+    <!-- Approved copy -->
+    <div class="card">
+      <div class="card-head">
+        <span class="num">1</span>
+        <h2>Approved Copy</h2>
+        <span class="hint">PDF · DOCX</span>
+      </div>
+
+      <div class="field-row">
+        <label class="field"><span>Site Name</span><input type="text" id="clientName" /></label>
+        <label class="field"><span>Page Name</span><input type="text" id="pageName" /></label>
+      </div>
+
+      <div class="dropzone" id="dropzone">
+        <input type="file" id="fileInput" accept=".pdf,.docx" hidden />
+        <div id="dropEmpty">
+          <div class="drop-icon"><svg class="ico" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+          <p><strong>Upload file</strong> or drag &amp; drop</p>
+          <p class="muted small">Supports PDF and DOCX · Max ~10 MB</p>
+        </div>
+        <div id="dropFilled" class="hidden">
+          <div class="file-chip">
+            <svg class="ico ico-lg file-ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <div><strong id="fileName">file.docx</strong><div class="muted small" id="fileMeta">DOCX · 0 KB</div></div>
+            <button class="x" id="clearFile" title="Remove"><svg class="ico ico-sm" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="status" id="approvedStatus">No approved copy loaded yet.</div>
+    </div>
+
+    <!-- Page to compare -->
+    <div class="card">
+      <div class="card-head">
+        <span class="num">2</span>
+        <h2>Page to Compare</h2>
+        <span class="hint">Staging or Live</span>
+      </div>
+
+      <label class="field">
+        <span>Page URL</span>
+        <div class="url-row">
+          <svg class="ico ico-sm url-ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          <input type="text" id="pageUrl" />
+        </div>
+      </label>
+
+      <label class="field hidden" id="pageSelectField">
+        <span>Which page in the approved copy is this?</span>
+        <select id="pageSelect"></select>
+      </label>
+
+      <fieldset class="scope">
+        <legend><svg class="ico ico-sm" viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>Scope</legend>
+        <label class="chk"><input type="checkbox" id="scContent" checked /><span>Content</span></label>
+        <label class="chk"><input type="checkbox" id="scCta" checked /><span>CTA</span></label>
+        <label class="chk"><input type="checkbox" id="scLinks" checked /><span>Links</span></label>
+      </fieldset>
+
+      <button class="btn btn-primary btn-lg" id="runBtn">
+        <svg class="ico ico-sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        Run QA Check
+      </button>
+      <div class="run-note muted small" id="runNote"></div>
+    </div>
+  </section>
+
+  <!-- ============ RESULTS ============ -->
+  <section id="results" class="hidden">
+    <!-- summary -->
+    <h3 class="section-title"><svg class="ico" viewBox="0 0 24 24"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/></svg>Summary <span class="muted small" id="summaryMeta" style="font-weight:400;"></span></h3>
+    <div class="summary" id="summaryTabs">
+      <div class="stat tab-stat active" data-filter="all"><div class="num" id="sTotal">0</div><div class="lbl">Total Issues</div></div>
+      <div class="stat tab-stat" data-filter="Missing Copy"><div class="num" id="sMissing">0</div><div class="lbl">Missing Copy</div></div>
+      <div class="stat tab-stat" data-filter="Copy Mismatch"><div class="num" id="sMismatch">0</div><div class="lbl">Mismatch</div></div>
+      <div class="stat tab-stat" data-filter="Extra Section"><div class="num" id="sExtra">0</div><div class="lbl">Extra Copy</div></div>
+      <div class="stat tab-stat" data-filter="CTA Issue"><div class="num" id="sCta">0</div><div class="lbl">CTA / Link</div></div>
+      <div class="stat" data-filter="none"><div class="num" id="sMatch">0%</div><div class="lbl">Match Score</div></div>
+    </div>
+
+    <!-- issues -->
+    <div class="card" style="margin-bottom:18px;">
+      <div class="table-wrap">
+        <table>
+          <colgroup><col class="col-sec"><col class="col-view"><col class="col-type"><col><col><col><col class="col-done"></colgroup>
+          <thead><tr><th>Section</th><th class="view-cell">View</th><th>Issue Type</th><th>Approved Copy</th><th>Current Page Copy</th><th>Observations</th><th class="done-cell">✓</th></tr></thead>
+          <tbody id="issuesBody"></tbody>
+        </table>
+      </div>
+      <div class="table-foot">
+        <span class="muted small" id="rowCount">0 issues</span>
+        <div class="export-btns">
+          <button class="btn btn-outline" id="exportCsv"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV</button>
+          <button class="btn btn-outline" id="copyReport"><svg class="ico ico-sm" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy Report</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="appfoot">
+    <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-08b · Punch Toolkit</span>
+  </footer>
+</div>
+
+<!-- how it works modal -->
+<div class="modal hidden" id="howModal">
+  <div class="modal-box">
+    <div class="modal-head"><h3><svg class="ico" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>How it works</h3><button class="x" id="closeHow"><svg class="ico" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <ol class="how-steps">
+      <li><strong>Upload the approved copy</strong> — a PDF or Word (.docx) file.</li>
+      <li><strong>Enter the page URL</strong> (staging or live).</li>
+      <li><strong>Run QA Check</strong> — the tool extracts the visible text from the page and compares it block by block.</li>
+      <li><strong>Review results</strong> — a prioritized table of missing copy, mismatches, extra sections, and CTA issues.</li>
+      <li><strong>Export</strong> the report as CSV or copy it to paste into a ticket.</li>
+    </ol>
+    <p class="muted small">The page is fetched automatically. It must be public and reachable — password-protected or firewalled pages can't be read.</p>
+  </div>
+</div>
+
+<!-- locate-in-document preview modal -->
+<div class="modal hidden" id="locateModal">
+  <div class="modal-box locate-box">
+    <div class="modal-head"><h3><svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Locate in document</h3><button class="x" id="closeLocate"><svg class="ico" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <div class="locate-sub muted small" id="locateSub"></div>
+    <div id="locateBody" class="locate-body"></div>
+  </div>
+</div>
+
+<div class="toast hidden" id="toast"></div>
+
+<script>
+if(window.pdfjsLib){pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";}
+const $=(s)=>document.querySelector(s), $$=(s)=>Array.from(document.querySelectorAll(s));
+// Backend origin for /render + /ai/* . Empty = same-origin (local dev with
+// serve.py serving this file, or a same-origin /api proxy). Set via the
+// <meta name="api-base"> in <head>. localhost/file:// always force same-origin
+// so local dev never hits a remote backend. See DEPLOY.md.
+const API_BASE=(location.hostname==="localhost"||location.hostname==="127.0.0.1"||location.protocol==="file:")?"":(document.querySelector('meta[name="api-base"]')?.content||"").replace(/\/$/,"");
+const state={approvedText:"",approvedBlocks:[],pages:[],issues:[],allIssues:[],done:new Set(),
+  docKind:null,pdfDoc:null,pdfLines:[],docText:"",isDocx:false,isRunning:false,runCtrl:null};
+
+/* ---------------- text utils ---------------- */
+function normalize(s){return (s||"").replace(/\s+/g," ").replace(/[‘’]/g,"'").replace(/[“”]/g,'"').replace(/[–—]/g,"-").trim();}
+function normKey(s){return normalize(s).toLowerCase().replace(/[^\w\s]/g,"").trim();}
+function splitBlocks(t){return t.split(/\n+/).map(l=>normalize(l)).filter(l=>l.length>1);}
+
+/* ---------------- document parsers ---------------- */
+// Re-join wrapped lines back into logical paragraphs: a line is a continuation
+// of the previous one when the previous line doesn't end in sentence punctuation,
+// and either the next starts lower-case (or with an opening bracket), OR — using
+// each line's PDF bounding box — the vertical gap to the previous line is small
+// enough to be normal line-wrap spacing rather than a paragraph/heading break.
+// The bounding-box check matters because a wrapped Title Case headline ("On-Prem
+// Keys for" / "Cloud Data", "...Bowie State University for M.A.P." / "Program")
+// doesn't start lower-case, so the text-only heuristic alone leaves an orphaned
+// one- or two-word "line" that then pollutes page-title detection and shows up
+// as its own bogus approved-copy block. Lines are plain strings for DOCX (no
+// bounding box, so only the text heuristic applies) or `{str,page,y0,y1}`
+// objects for PDF.
+function reflowLines(lines){
+  const out=[];
+  for(const raw of lines){
+    const hasBox=raw&&typeof raw==="object";
+    const line=((hasBox?raw.str:raw)||"").trim();
+    if(!line)continue;
+    const prev=out[out.length-1];
+    // A bullet/page-number stamp ("• • 17") or a bare URL slug ("/who-we-are")
+    // sitting right under a heading can be vertically close enough to look
+    // like a wrap — but neither is ever a genuine continuation of it, so the
+    // bounding-box check alone must not merge them into one line.
+    const looksLikeStamp=/^[•·●▪◦*\-–—\d.\s]+$/.test(line)||/^\/[a-z0-9\-\/]+$/i.test(line);
+    if(prev&&prev.text.length<400&&!/[.!?:;)\]”"'»]$/.test(prev.text)&&!looksLikeStamp){
+      const startsLower=/^[a-z(¿¡"'–-]/.test(line);
+      const tightWrap=hasBox&&prev.page!=null&&raw.page===prev.page&&
+        (prev.y0-raw.y0)<=Math.max(prev.h||0,(raw.y1-raw.y0))*1.35+2;
+      if(startsLower||tightWrap){
+        prev.text+=" "+line;
+        if(hasBox){prev.page=raw.page;prev.y0=raw.y0;prev.h=raw.y1-raw.y0;}
+        continue;
+      }
+    }
+    out.push(hasBox?{text:line,page:raw.page,y0:raw.y0,h:raw.y1-raw.y0}:{text:line,page:null});
+  }
+  return out.map(o=>o.text);
+}
+// Parse a PDF capturing each visual line's page + bounding box, so issues can be
+// located and highlighted on the rendered page later.
+async function parsePdf(buf){
+  const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+  const lines=[];const pageTexts=[];
+  for(let p=1;p<=pdf.numPages;p++){
+    const page=await pdf.getPage(p);const c=await page.getTextContent();
+    let lastY=null,cur=null;const pl=[];
+    const flush=()=>{if(cur){cur.str=cur.str.trim();if(cur.str)pl.push(cur);}cur=null;};
+    c.items.forEach(it=>{
+      if(!it.str)return;
+      const x=it.transform[4],y=it.transform[5],w=it.width||0,h=it.height||Math.abs(it.transform[3])||10;
+      if(lastY!==null&&Math.abs(y-lastY)>Math.max(4,h*0.6))flush();
+      if(!cur)cur={page:p,str:"",x0:x,y0:y,x1:x+w,y1:y+h};
+      cur.str+=it.str;cur.x0=Math.min(cur.x0,x);cur.x1=Math.max(cur.x1,x+w);cur.y0=Math.min(cur.y0,y);cur.y1=Math.max(cur.y1,y+h);
+      lastY=y;
+    });
+    flush();
+    pl.forEach(l=>lines.push(l));
+    pageTexts.push(pl.map(l=>l.str).join("\n"));
+  }
+  return {pdf,lines,text:pageTexts.join("\n")};
+}
+
+/* DOCX parsed WITH color + table context, so we can tell apart real copy from
+   green alternates, pink instructions and the Yoast/SEO box. */
+const W_NS="http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+function attrW(el,name){return el.getAttributeNS(W_NS,name)||el.getAttribute("w:"+name)||el.getAttribute(name);}
+function colorClass(hex){ // returns 'green' | 'pinkred' | '' (normal/black)
+  if(!hex||hex==="auto"||/^0{6}$/i.test(hex))return "";
+  const r=parseInt(hex.slice(0,2),16),g=parseInt(hex.slice(2,4),16),b=parseInt(hex.slice(4,6),16);
+  if([r,g,b].some(isNaN))return "";
+  if(g>90&&g>=r+25&&g>=b+5)return "green";                 // greens (00B050, 008000…)
+  if(r>110&&r>=g+45)return "pinkred";                      // reds/pinks/magentas (FF0000, C00000, E6007E…)
+  return "";
+}
+async function parseDocxStructured(buf){
+  const zip=await JSZip.loadAsync(buf);
+  const f=zip.file("word/document.xml"); if(!f)throw new Error("no document.xml");
+  const xml=await f.async("string");
+  const doc=new DOMParser().parseFromString(xml,"application/xml");
+  // tables whose text looks like the SEO/Yoast box → every paragraph inside = scaffold
+  const scaffoldParas=new Set();
+  Array.from(doc.getElementsByTagNameNS(W_NS,"tbl")).forEach(tbl=>{
+    if(/yoast|focus keyphrase|meta description|seo title|meta title|page seo info|propagate/i.test(tbl.textContent||""))
+      Array.from(tbl.getElementsByTagNameNS(W_NS,"p")).forEach(p=>scaffoldParas.add(p));
+  });
+  const blocks=[];
+  Array.from(doc.getElementsByTagNameNS(W_NS,"p")).forEach(p=>{
+    let text="",green=0,pinkred=0,tot=0;
+    Array.from(p.getElementsByTagNameNS(W_NS,"r")).forEach(r=>{
+      let rt="";Array.from(r.getElementsByTagNameNS(W_NS,"t")).forEach(t=>rt+=t.textContent);
+      if(!rt)return;
+      const cEl=r.getElementsByTagNameNS(W_NS,"color")[0];
+      const cls=colorClass(cEl?attrW(cEl,"val"):null);
+      text+=rt;tot+=rt.length;if(cls==="green")green+=rt.length;else if(cls==="pinkred")pinkred+=rt.length;
+    });
+    text=normalize(text);if(!text)return;
+    let kind="normal";
+    if(scaffoldParas.has(p))kind="scaffold";
+    else if(tot&&pinkred/tot>0.55)kind="instruction";
+    else if(tot&&green/tot>0.55)kind="alternate";
+    blocks.push({text,kind});
+  });
+  return blocks;
+}
+async function parseDocx(buf){const r=await mammoth.extractRawText({arrayBuffer:buf});return r.value||"";}
+
+// Pattern-based scaffolding (works for PDF too, where color isn't available).
+function scaffoldByPattern(t){
+  t=t.trim();
+  // --- Punch's own agency watermark, stamped on every page of the source draft
+  // (seen combined with an address/email line, or standalone) — never client copy.
+  if(/addsomepunch\.com/i.test(t))return true;
+  if(/^\/\//.test(t))return true;                                       // "//This whole page should be treated as placeholder"
+  if(/\s\/\/\S/.test(t))return true;                                    // "Technology>How It Works //Already in High Value Pages Doc" — inline comment glued onto a breadcrumb by the PDF's own line layout, not a separate raw line
+  if(/^\d{1,4}\s*(\(footer\))?$/i.test(t))return true;                  // bare page number, e.g. "23", "33 (Footer)"
+  // --- SEO / Yoast box labels + common wrapped fragments ---
+  if(/copy from here to propagate|propagate yoast|page seo info|focus keyphrase|meta description|seo title|meta title|header\s*\(h1\)|\bh1\s*\/\s*title\b/i.test(t))return true;
+  if(/\bmore than \d+ characters?\b/i.test(t))return true;              // "...no more than 70 characters"
+  if(/^than \d+ characters?/i.test(t))return true;                      // wrapped "than 156 characters"
+  // --- intro / meta lines ---
+  if(/^(page goals?|goal ctas?|page url|url|slug|keyphrase|meta|seo|ctas?|goals?|notes?|instructions?)\s*[:>]/i.test(t))return true;
+  if(/^\/[a-z0-9\-\/]+$/i.test(t))return true;                          // /fedramp
+  if(/^[A-Z][\w .&'-]+\s*>\s*[\w .&>'-]+$/.test(t)&&t.length<60)return true; // Services > FedRAMP
+  if(/\b(high|low|medium)\s+value\s+pages\b/i.test(t))return true;
+  if(/^[A-Z][\w-]{1,24}:$/.test(t))return true;                         // single-word label "Fortreum:"
+  // --- structural / layout annotations ---
+  if(/^\[\[.+\]\]$/.test(t))return true;                                // [[Overview Page]], [[TrustedKeep Page]]
+  if(/^\[[^\]]+\](\s*\|\s*\[[^\]]+\])+$/.test(t))return true;           // [Home] | [Capabilities] (footer quick-links)
+  if(/^\[[^\]]+\]$/.test(t))return true;                                // [Card 1], [Tab 1]
+  if(/^(tab|card|column|col|accordion|slide|module|toggle|hero|banner|cta)\s*#?\d+$/i.test(t))return true; // Tab 1, Card 2
+  if(/^[•·●▪◦*\-–—]+(\s+[•·●▪◦*\-–—\d.]+)*$/.test(t))return true;        // "• • 1", bullet markers only
+  // --- table of contents / document index ---
+  if(/^(index|table of contents|contents|toc|índice|indice|tabla de contenidos?|contenido)\s*:?\s*$/i.test(t))return true;
+  if(/(?:[.·•…]\s*){2,}\d{1,3}\s*$/.test(t))return true;            // "About Us .......... 3"
+  if(/^(page|pg|pág|pag|p)\.?\s*\d{1,3}$/i.test(t))return true;          // "Page 3", "pg. 12"
+  if(/^\d{1,3}[.)]\s+\S.{0,60}$/.test(t)&&!/[.!?]$/.test(t))return true; // numbered TOC entry "1. Home"
+  // --- navigation / sitemap annotations from the doc ("About Link", "Data Products Link Link") ---
+  if(/\bLink(\s+Link)?\.?$/.test(t)&&t.split(/\s+/).length<=6)return true;
+  // --- global section markers (footer/header placed once per page in the copy) ---
+  if(/^[\(\[]?\s*(footer|header|global footer|global header)\s*[\)\]]?$/i.test(t))return true;
+  // --- "Tab N" / "Copy of Tab 1" production placeholders ---
+  if(/^copy of\b/i.test(t)&&t.length<=40)return true;
+  if(/^(tab|card|section|step|column|col|accordion|slide)\s*\d+\b/i.test(t)&&t.length<=20)return true;
+  return false;
+}
+// Doc navigation annotation + adjacent bare menu labels (e.g. "Homepage").
+const NAV_LINK_RE=/\bLink(\s+Link)?\.?$/;
+const navLabelLike=(t)=>t.split(/\s+/).length<=2 && /^[A-Z][\w&]/.test(t) && !/[.!?:,;]$/.test(t) && t.length<=24;
+
+// "[Button Label] note" notation = a CTA/button that MUST be on the site.
+// The BUTTON is only the bracket text; whatever follows is an INDICATION about it
+// — a link (e.g. "(/contact)" or "/contact") or a free-text note — never page copy.
+// (Different from a plain "[Card 1]" annotation, which has nothing after it.)
+const CTA_BRACKET_RE=/^\[\s*(.+?)\s*\]\s+(\S.*?)\s*$/;
+const looksLikeUrl=(s)=>/^(\/|https?:|#|tel:|mailto:|www\.)/i.test(s)||(!/\s/.test(s)&&/[./]/.test(s));
+function parseCtaNote(raw){const m=raw.match(/^\(\s*(.+?)\s*\)$/);return m?m[1].trim():raw.trim();}
+
+// When one of these is seen we're inside the SEO/Yoast box; the following short
+// lines (its values, incl. the wrapped meta title/description) are scaffold too.
+const SEO_TRIGGER=/copy from here to propagate|propagate yoast|page seo info|focus keyphrase|meta description|\bseo title\b|\bmeta title\b|header\s*\(h1\)/i;
+// Narrower than SEO_TRIGGER: matches only the box-OPENING line ("Page SEO Info
+// Copy from here to propagate Yoast/Semrush"), not every field inside the box
+// (Focus Keyphrase, Header (H1)/Title, Meta Description, ...). Many client copy
+// decks paste this box once per page, right after that page's name/breadcrumb —
+// a far more reliable page-boundary signal than asking an LLM to guess from
+// prose alone. See deterministicPageSplit().
+const PAGE_BOX_OPEN_RE=/page seo info|copy from here to propagate|propagate yoast/i;
+
+// A "Table of contents" / "Index" header opens an index region: the entries that
+// follow (page titles, with or without page numbers) are dropped until real
+// content begins (a sentence/paragraph that isn't an index entry).
+const INDEX_TRIGGER=/^(index|table of contents|contents|toc|índice|indice|tabla de contenidos?)\s*:?\s*$/i;
+function tocEntryLike(t){
+  t=t.trim();
+  if(!t)return true;
+  if(scaffoldByPattern(t))return true;                       // dot-leader / page-N / breadcrumb / etc.
+  if(/^[\dIVXLC]{1,4}[.).]?\s*$/i.test(t))return true;        // bare page/section number
+  if(t.length<=48&&!/[.!?:]$/.test(t)&&t.split(" ").length<=8)return true; // short title-like line
+  return false;
+}
+
+// Build the final approved-copy blocks: drop scaffolding & pink instructions;
+// turn "[Label] (note)" into a CTA block; attach green alternates to their
+// preceding normal block (or keep standalone).
+// regionSEO: when true (PDF / no table structure) we also swallow the value
+// lines that follow an SEO-box marker. For DOCX the table is detected directly,
+// so we leave it off to avoid eating a real heading next to the box.
+function buildApprovedBlocks(raw,regionSEO){
+  const out=[];let seoZone=0,inIndex=false,inNav=false;
+  raw.forEach(b=>{
+    const cta=b.text.match(CTA_BRACKET_RE);                        // button notation wins over color
+    if(cta){seoZone=0;inIndex=false;inNav=false;const note=parseCtaNote(cta[2]);const url=looksLikeUrl(note)?note:"";
+      out.push({text:normalize(cta[1]),kind:"cta",url,note:url?"":note});return;}
+    // Document navigation / sitemap region: "X Link" / "X Link Link" entries plus
+    // the adjacent bare menu labels (e.g. "Homepage") are not page copy.
+    if(NAV_LINK_RE.test(b.text)&&b.text.split(/\s+/).length<=6){inNav=true;return;}
+    if(inNav){if(NAV_LINK_RE.test(b.text)||navLabelLike(b.text))return; inNav=false;}
+    // Document index / table of contents region
+    if(INDEX_TRIGGER.test(b.text)){inIndex=true;return;}           // drop header, enter index
+    if(inIndex){if(tocEntryLike(b.text))return; inIndex=false;}    // drop entries; first real line ends it
+    if(regionSEO){
+      if(SEO_TRIGGER.test(b.text)){seoZone=3;return;}              // SEO marker → open a small zone
+      if(seoZone>0){if(b.text.length<=180){seoZone--;return;}seoZone=0;}  // swallow short value lines
+    }
+    const kind=(b.kind&&b.kind!=="normal")?b.kind:(scaffoldByPattern(b.text)?"scaffold":"normal");
+    if(kind==="scaffold"||kind==="instruction")return;            // ignore entirely
+    if(kind==="alternate"){
+      const prev=out[out.length-1];
+      // Space-constrained alternates apply to any element type — a heading, a
+      // paragraph, or a CTA's button label — not just body copy, so pairing
+      // isn't restricted to "normal" blocks.
+      if(prev&&(prev.kind==="normal"||prev.kind==="cta")&&!prev.alt)prev.alt=b.text;
+      else out.push({text:b.text,kind:"alternate"});              // standalone green
+      return;
+    }
+    out.push({text:b.text,kind:"normal"});
+  });
+  return out;
+}
+
+async function handleFile(file){
+  const ext=file.name.split(".").pop().toLowerCase();const buf=await file.arrayBuffer();
+  if(ext==="pdf"){
+    const {pdf,lines}=await parsePdf(buf);
+    const reflowed=reflowLines(lines).join("\n");
+    return {rawText:reflowed,structured:false,docKind:"pdf",pdf,lines,
+      raw:splitBlocks(reflowed).map(t=>({text:t,kind:"normal"})),regionSEO:true};
+  }
+  if(ext==="docx"){
+    let raw,structured=true;
+    try{raw=await parseDocxStructured(buf);}                       // color + table aware
+    catch(_){const text=await parseDocx(buf);raw=splitBlocks(text).map(t=>({text:t,kind:"normal"}));structured=false;}
+    const rawText=raw.map(b=>b.text).join("\n");
+    return {rawText,structured,docKind:"docx",pdf:null,lines:[],raw,regionSEO:!structured};
+  }
+  throw new Error("Unsupported file type. Use PDF or DOCX.");
+}
+
+/* ---------------- page segmentation (multi-page documents) ----------------
+   Approved-copy decks often bundle the copy for an entire site into one file,
+   with no fixed marker between pages. Two strategies, tried in order:
+   1. deterministicPageSplit() — many decks paste an SEO/Yoast box once per
+      page (PAGE_BOX_OPEN_RE), right after that page's name/breadcrumb. When
+      that marker repeats, it's a 100% reliable, free, instant boundary — far
+      more trustworthy than asking an LLM to guess from prose alone.
+   2. Claude (/ai/segment-pages) — used only when the document doesn't follow
+      that template, since boundaries then have to be judged from context.
+   Falls back to a single "Full document" page if both fail — upload still
+   works, it just can't offer a picker. */
+// The page's name/breadcrumb sits a few lines above its SEO box, with assorted
+// noise sometimes in between (Page Goal/Goal CTA, a URL slug, page-number
+// bullets, the agency's own watermark, "Copy of Tab 1"/"Tab N" placeholders).
+// Shared by deterministicPageSplit's backward scan AND findEmbeddedPageSplit
+// (below), so a line like "Tab 1" is never mistaken for a real page name in
+// either place.
+function isTitleNoiseLine(t){
+  return /^(page goals?|goal ctas?)\s*:/i.test(t)||
+    /addsomepunch\.com/i.test(t)||
+    /^\/\//.test(t)||
+    /^\d{1,4}\s*(\(footer\))?$/i.test(t)||
+    /^[•·●▪◦*\-–—]+(\s+[•·●▪◦*\-–—\d.]+)*$/.test(t)||
+    /^[\(\[]?\s*(footer|header|global footer|global header)\s*[\)\]]?$/i.test(t)||
+    /^\[[^\]]+\](\s*\|\s*\[[^\]]+\])+$/.test(t)||
+    /^\[[^\]]+\]$/.test(t)||
+    /^sub[\s-]?page name\s*>\s*sub-?sub[\s-]?page name/i.test(t)||
+    (/^copy of\b/i.test(t)&&t.length<=40)||
+    (/^(tab|card|section|step|column|col|accordion|slide)\s*\d+\b/i.test(t)&&t.length<=20);
+}
+function deterministicPageSplit(raw){
+  const markers=[];
+  raw.forEach((b,i)=>{if(PAGE_BOX_OPEN_RE.test(b.text))markers.push(i);});
+  if(markers.length<2)return null;  // not confident this template is in use
+  const titleFor=(markerIdx)=>{
+    let label=null,earliest=markerIdx;
+    for(let j=markerIdx-1;j>=Math.max(0,markerIdx-10);j--){
+      const t=raw[j].text;
+      if(isTitleNoiseLine(t)){earliest=j;continue;}
+      const isSlugLike=/^\/|^slug\b/i.test(t);
+      if(t.length<=80&&!/[.!?:;,]$/.test(t)){
+        earliest=j;
+        if(!isSlugLike){label=t;break;}   // readable name/breadcrumb — stop here
+        if(!label)label=t;                 // keep the slug only as a fallback
+        continue;
+      }
+      break;  // doesn't look like a title/label line — we've hit real prose
+    }
+    return {text:label||`Page ${markerIdx}`,line:earliest};
+  };
+  // Use the computed label, NOT raw[start].text — when no clean name/breadcrumb
+  // turns up in the window, `earliest` is left sitting on the last noise line
+  // it skipped (e.g. "Page Goal: ..."), which is not the same as the "Page N"
+  // fallback titleFor() actually chose for a missing label.
+  const titleByLine=new Map();
+  markers.forEach(i=>{const r=titleFor(i);if(!titleByLine.has(r.line))titleByLine.set(r.line,r.text);});
+  const starts=[...titleByLine.keys()].sort((a,b)=>a-b);
+  // Whatever sits before the first page marker (document title/cover, a
+  // table of contents, "Tab 1") is front matter, never site content — it's
+  // dropped rather than surfaced as a selectable "page".
+  return starts.map((start,k)=>({
+    title:titleByLine.get(start),
+    start_line:start,
+    end_line:(k+1<starts.length?starts[k+1]:raw.length)-1,
+  }));
+}
+// A breadcrumb-shaped title ("Platform>XRAMP>Pricing") names the page's whole
+// lineage, but the page's own name is only the LAST segment ("Pricing") — the
+// parents are there purely to disambiguate during segmentation, not part of
+// the name a QA reviewer would recognize.
+function pageOwnName(title){
+  const parts=(title||"").split(">");
+  return parts[parts.length-1].trim()||title;
+}
+// Not every page in a deck carries the deck's own SEO-box/breadcrumb marker —
+// a partner's co-marketing page (or any page pasted in from a different
+// source) can sit inside another page's boundaries with none of the usual
+// signals. The tell is the same one a human reviewer uses: a short name that
+// was NEVER mentioned before that point suddenly appears, and the lines right
+// after it are dense with that same name — a "Kovr" heading followed by
+// paragraph after paragraph of "Kovr.ai does X" reads as its own page even
+// with zero structural markers, where a content-free "Tab 1"/"Tab 2" label
+// (nothing follows it, or nothing that repeats it) correctly does not.
+function findEmbeddedPageSplit(raw,start,end){
+  for(let i=start+3;i<=end-5;i++){
+    const t=raw[i].text.trim();
+    if(t.length<3||t.length>30)continue;
+    if(!/^[A-Z][\w.&'-]*(\s+[A-Z][\w.&'-]*){0,2}$/.test(t))continue;   // short Title Case name, 1-3 words
+    if(isTitleNoiseLine(t)||scaffoldByPattern(t))continue;
+    const nameKey=t.toLowerCase();
+    let before=0;for(let j=start;j<i;j++)if(raw[j].text.toLowerCase().includes(nameKey)){before++;break;}
+    if(before)continue;                                              // already an established name on this page
+    let after=0;for(let j=i+1;j<=Math.min(end,i+20);j++)if(raw[j].text.toLowerCase().includes(nameKey))after++;
+    if(after>=4)return i;                                            // suddenly appears, then repeats densely
+  }
+  return -1;
+}
+function expandEmbeddedPages(raw,segs){
+  const out=[];
+  const splitRecursive=(s)=>{
+    const splitAt=findEmbeddedPageSplit(raw,s.start_line,s.end_line);
+    if(splitAt<0){out.push(s);return;}
+    out.push({title:s.title,start_line:s.start_line,end_line:splitAt-1});
+    splitRecursive({title:raw[splitAt].text.trim(),start_line:splitAt,end_line:s.end_line});
+  };
+  segs.forEach(splitRecursive);
+  return out;
+}
+async function segmentPagesWithClaude(raw,regionSEO){
+  const toPages=(segs)=>expandEmbeddedPages(raw,segs).map(s=>{
+    const slice=raw.slice(Math.max(0,s.start_line),Math.min(raw.length,s.end_line+1));
+    return {title:pageOwnName(s.title||"Page"),blocks:buildApprovedBlocks(slice,regionSEO),rawCount:slice.length};
+  });
+  const det=deterministicPageSplit(raw);
+  if(det)return toPages(det);
+  try{
+    const res=await fetch(API_BASE+"/ai/segment-pages",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({lines:raw.map(r=>r.text)})});
+    if(!res.ok)throw new Error("HTTP "+res.status);
+    const data=await res.json();
+    const segs=(data.pages||[]).filter(s=>Number.isInteger(s.start_line)&&Number.isInteger(s.end_line)&&s.end_line>=s.start_line);
+    if(!segs.length)throw new Error("no pages returned");
+    return toPages(segs);
+  }catch(e){
+    return [{title:"Full document",blocks:buildApprovedBlocks(raw,regionSEO),rawCount:raw.length,splitFailed:true}];
+  }
+}
+
+/* ---------------- page fetch (multi-proxy) ---------------- */
+// Page content is always read through serve.py's /render endpoint, which loads
+// the URL in a real (headless) Chrome and waits for JavaScript to finish before
+// handing back the HTML. There is no raw-HTML / public-proxy fallback: those
+// can't execute JavaScript and would silently reintroduce false "Missing Copy"
+// results for content the site injects client-side. See CLAUDE.md.
+async function fetchPageHtml(url){
+  if(location.protocol!=="http:"&&location.protocol!=="https:")
+    throw new Error("Reading a live page requires the local server. Start it with \"Iniciar Copy Match Checker.bat\" (or `py serve.py`), then open the tool at http://localhost:5500 — don't open index.html directly.");
+  const ctrl=state.runCtrl||new AbortController();const t=setTimeout(()=>ctrl.abort("timeout"),45000);
+  try{
+    const res=await fetch(`${API_BASE||location.origin}/render?url=${encodeURIComponent(url)}`,{signal:ctrl.signal,credentials:"include"});
+    if(!res.ok){
+      const raw=await res.text().catch(()=>"");let detail=raw;
+      try{detail=JSON.parse(raw).error||raw;}catch(_){}
+      throw new Error(`${detail||("HTTP "+res.status)}\n\nMake sure serve.py is running with Playwright installed (py -m pip install playwright).`);
+    }
+    return await res.text();
+  }catch(e){
+    if(e.name==="AbortError")throw new Error(ctrl.signal.reason==="cancelled"?"Cancelled by user.":"Timed out rendering the page (45s). The site may be slow or unreachable.");
+    throw e;
+  }finally{clearTimeout(t);}
+}
+function detectCms(html){
+  if(/wp-content|wp-includes|wordpress/i.test(html))return "WordPress";
+  if(/hubspot|hs-scripts|hsforms|hubspotusercontent/i.test(html))return "HubSpot";
+  return "Static / Unknown";
+}
+// Best-effort Site Name guess from the Page URL's hostname, e.g.
+// "https://www.fortreum.com/accreditations" -> "Fortreum". The first label is
+// used even on multi-part hosting/staging domains (wpenginepowered.com,
+// herokuapp.com, …) since that's where client sites put the brand name; a
+// trailing -dev/-staging/-test env suffix is stripped too. Just a starting
+// suggestion — it only fills the field when empty, never overwrites a name
+// the user already typed or edited.
+function guessSiteName(url){
+  try{
+    const host=new URL(url).hostname.replace(/^www\./i,"");
+    let label=host.split(".")[0].replace(/[-_]?(dev|staging|stage|test)\d*$/i,"");
+    label=label.replace(/[-_]+/g," ").trim();
+    if(!label)return "";
+    return label.split(" ").filter(Boolean).map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(" ");
+  }catch(e){return "";}
+}
+
+/* ---------------- visible text extraction ---------------- */
+// Scoping to <main>/<article> was tried and dropped: real sites in the wild
+// mark up more than one <main> (a near-empty hero main + the real content in
+// a second one), or put genuine body copy in a wrapper that sits OUTSIDE any
+// <main> at all — both silently dropped most of the page. Nav/footer removal
+// (below) already keeps boilerplate out, so the whole body is scanned.
+// Removes every element whose class/id contains `word` (nav/menu/footer) as a
+// whole word — catches page-builder themes that build the main menu or footer
+// without the semantic <nav>/<footer> tag (e.g. WordPress/Avia's mega-menu is a
+// plain <div id="header"><div class="avia-menu ... av-main-nav-wrap">, which a
+// tag-only selector never matches, silently pulling the entire sitemap tree —
+// contract-vehicle names, footer links, etc. — into the page's compared copy).
+function stripByRole(doc,word){
+  const re=new RegExp(`\\b(${word})\\b`,"i");
+  doc.querySelectorAll("[class],[id]").forEach(el=>{
+    // Never remove the document root: some themes (Enfold/Avia) stamp broad
+    // layout-config classes on <html>/<body> itself, e.g. "html_main_nav_header"
+    // or "html_menu_right" — those describe a layout preference, not a menu to
+    // strip, and removing the root would blank the whole page.
+    if(el===doc.documentElement||el===doc.body)return;
+    const key=((el.getAttribute("class")||"")+" "+(el.getAttribute("id")||"")).replace(/[-_]/g," ");
+    if(re.test(key))el.remove();
+  });
+}
+// Drops elements that are hidden by markup alone (inline style, the `hidden`
+// attribute, or a common hidden-utility class). Content hidden only via an
+// external stylesheet (a tab panel that isn't the active one, a closed
+// accordion) can't be detected this way — DOMParser never loads CSS — that's
+// a known limitation; a modal/tab section on a Credence page (a standalone
+// SMS privacy policy) leaked through this way before this existed.
+// Deliberately does NOT remove [aria-hidden="true"]: sites commonly use it on
+// content that IS visible on screen but redundant for screen readers (e.g. a
+// letter-by-letter text-reveal animation, with the "real" accessible label
+// elsewhere via aria-label) — a real Victus page hid three genuine CTA button
+// labels ("Learn More", "Request A Demo", …) this way before this was fixed.
+const HIDDEN_UTILITY_RE=/\b(hidden|d-none|is-hidden|u-hidden|visually-hidden|sr-only|screen-reader-text|elementor-hidden|vc_hidden)\b/i;
+function stripHiddenMarkup(doc){
+  doc.querySelectorAll("[style]").forEach(el=>{if(/display\s*:\s*none|visibility\s*:\s*hidden/i.test(el.getAttribute("style")||""))el.remove();});
+  doc.querySelectorAll("[hidden]").forEach(n=>n.remove());
+  doc.querySelectorAll("[class]").forEach(el=>{
+    if(el===doc.documentElement||el===doc.body)return;
+    if(HIDDEN_UTILITY_RE.test(el.getAttribute("class")||""))el.remove();
+  });
+}
+// Decorative arrows/chevrons tacked onto a button or link label ("Talk to an
+// Expert →", "Explore Products →") are UI icon, never real copy — stripped so
+// the extracted text can still match an approved label that doesn't include
+// them. Only applied to button/link text, never to headings/paragraphs.
+function stripDecorativeIcon(t){
+  return t.replace(/^[→➜➔➤▶►»›➡⇒⟶↠⇾]+\s*/,"")
+           .replace(/\s*(-{1,2}>|[→➜➔➤▶►»›➡⇒⟶↠⇾])+$/,"").trim();
+}
+function extractVisible(html,scope){
+  const doc=new DOMParser().parseFromString(html,"text/html");
+  doc.querySelectorAll("script,style,noscript,template,svg,iframe").forEach(n=>n.remove());
+  stripHiddenMarkup(doc);
+  if(!scope.nav){doc.querySelectorAll("nav,[role=navigation]").forEach(n=>n.remove());stripByRole(doc,"nav|menu");}
+  if(!scope.footer){doc.querySelectorAll("footer,[role=contentinfo]").forEach(n=>n.remove());stripByRole(doc,"footer");}
+  const root=doc.body||doc;
+  const ctas=[];
+  if(scope.cta)root.querySelectorAll("button,a.button,a.btn,a[class*=cta],a[class*=button],a[class*=btn],[role=button],input[type=submit]").forEach(el=>{const t=stripDecorativeIcon(normalize(el.value||el.textContent));if(t&&t.length<80)ctas.push(t);});
+  const links=[];
+  if(scope.links)root.querySelectorAll("a[href]").forEach(el=>{const t=stripDecorativeIcon(normalize(el.textContent));const href=el.getAttribute("href")||"";if(t&&!/^#/.test(href))links.push({text:t,href});});
+  const blocks=[];
+  root.querySelectorAll("h1,h2,h3,h4,h5,h6,p,li,blockquote,td,th,figcaption,button,a").forEach(el=>{
+    const tag=el.tagName.toLowerCase();
+    let t=normalize(el.textContent);
+    if(tag==="button"||tag==="a")t=stripDecorativeIcon(t);
+    if(t&&t.length>1)blocks.push({text:t,tag});
+  });
+  // Also capture the DIRECT text of generic containers — eyebrows/labels/headings
+  // that modern sites & page builders put in <div>/<span> (not semantic tags).
+  // Skip nodes already inside a captured text block to avoid inline-word noise.
+  root.querySelectorAll("div,span,label,dt,dd,summary,caption").forEach(el=>{
+    if(el.closest("p,li,h1,h2,h3,h4,h5,h6,blockquote,figcaption,button,a"))return;
+    let direct="";el.childNodes.forEach(n=>{if(n.nodeType===3)direct+=n.textContent;});
+    direct=normalize(direct);if(direct&&direct.length>1)blocks.push({text:direct,tag:el.tagName.toLowerCase()});
+  });
+  const seen=new Set();const clean=blocks.filter(b=>{const k=normKey(b.text);if(!k||seen.has(k))return false;seen.add(k);return true;});
+  return {blocks:clean,fullText:clean.map(b=>b.text).join("\n"),ctas:[...new Set(ctas)],links};
+}
+
+/* ---------------- comparison ---------------- */
+function sectionGuess(t){t=t.trim();const w=t.split(" ").length;if(w<=6)return t.length>40?t.slice(0,40)+"…":t;return t.slice(0,32)+"…";}
+function mech(type,priority,b,fix){return {priority,section:sectionGuess(b.text),type,approved:"—",current:b.text,fix};}
+// Mechanical, page-only checks that don't need judgment: repeated words, double
+// spaces, space-before-punctuation, and obviously-placeholder link targets.
+function mechanicalAndLinkChecks(page,scope){
+  const issues=[];
+  page.blocks.forEach(b=>{const t=b.text;
+    if(/\s{2,}/.test(t))issues.push(mech("Spacing Issue","Low",b,"Remove the extra spaces."));
+    if(/\s+[,.;:!?]/.test(t))issues.push(mech("Punctuation Issue","Low",b,"Remove the space before punctuation."));
+    if(/(\b\w+\b)\s+\1\b/i.test(t))issues.push(mech("Typo","Medium",b,"Possible repeated word — review."));
+  });
+  if(scope.links)page.links.slice(0,40).forEach(l=>{if(/^(javascript:|mailto:|tel:)/i.test(l.href))return;
+    if(/(example\.com|localhost|#$|undefined|null)/i.test(l.href)||l.href.trim()===""){
+      issues.push({priority:"Low",section:"Links",type:"Link Review",approved:"—",current:`${l.text} → ${l.href}`,fix:"Review this link target — looks like a placeholder."});}});
+  return issues;
+}
+
+/* ---------------- Claude comparison engine ----------------
+   The entire approved-vs-page comparison (Missing Copy / Copy Mismatch / Extra
+   Section / CTA Issue / Observation) is decided by Claude — there is no text-
+   similarity heuristic making that call, and no offline fallback. Requires
+   serve.py running with ANTHROPIC_API_KEY set. See CLAUDE.md for the full design. */
+async function compareWithClaude(approvedBlocks,page){
+  const payload={
+    approved_blocks:approvedBlocks.map(b=>({text:b.text,kind:b.kind,alt:b.alt||null,url:b.url||null,note:b.note||null})),
+    page_blocks:page.blocks.map(b=>b.text),
+    page_ctas:page.ctas,
+    page_links:page.links,
+  };
+  const ctrl=state.runCtrl||new AbortController();const t=setTimeout(()=>ctrl.abort("timeout"),120000);
+  try{
+    const res=await fetch(API_BASE+"/ai/compare",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},
+      signal:ctrl.signal,body:JSON.stringify(payload)});
+    if(!res.ok){const body=await res.json().catch(()=>({}));throw new Error(body.error||("HTTP "+res.status));}
+    const data=await res.json();
+    return {issues:data.issues||[],score:data.score||0};
+  }catch(e){
+    if(e.name==="AbortError")throw new Error(ctrl.signal.reason==="cancelled"
+      ?"Cancelled by user."
+      :"Claude comparison timed out (2 min) — the page or approved document may be too large.");
+    throw new Error(e.message||String(e));
+  }finally{clearTimeout(t);}
+}
+
+/* ---------------- rendering ---------------- */
+function priRank(p){return {High:0,Medium:1,Low:2,Info:3}[p]??4;}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function issueId(i){return i.type+"|"+i.section+"|"+(i.approved||"")+"|"+(i.current||"");}
+function renderAll(){
+  state.allIssues=[...state.issues].sort((a,b)=>priRank(a.priority)-priRank(b.priority));
+  renderSummary();setActiveTab("all");
+  $("#results").classList.remove("hidden");$("#results").scrollIntoView({behavior:"smooth",block:"start"});
+}
+function countType(type){const I=state.allIssues.filter(i=>!state.done.has(issueId(i)));  // open (unresolved) only
+  if(type==="all")return I.filter(i=>i.type!=="Observation").length;       // errors only
+  if(type==="CTA Issue")return I.filter(i=>i.type==="CTA Issue"||i.type==="Link Review").length;
+  return I.filter(i=>i.type===type).length;}
+// The Match Score Claude returns is a snapshot at run time. As the team marks
+// issues "Done" (i.e. they fixed them on the live site), the score should
+// visibly climb toward 100% — and back down on Undo — without a re-run.
+// Interpolates linearly between Claude's original score (0 resolved) and 100%
+// (all resolved), scaled by the fraction of error-type issues marked done.
+function liveScore(){
+  const errIssues=state.allIssues.filter(i=>i.type!=="Observation");
+  const total=errIssues.length;
+  if(!total)return 100;
+  const open=errIssues.filter(i=>!state.done.has(issueId(i))).length;
+  const base=state.score||0;
+  return Math.round(base+(100-base)*(1-open/total));
+}
+function setActiveTab(filter){
+  state.activeFilter=filter;
+  $$("#summaryTabs .tab-stat").forEach(t=>t.classList.toggle("active",t.dataset.filter===filter));
+  renderTable(filter);
+}
+function renderSummary(){const I=state.allIssues.filter(i=>!state.done.has(issueId(i)));
+  $("#sTotal").textContent=countType("all");
+  $("#sMissing").textContent=I.filter(i=>i.type==="Missing Copy").length;
+  $("#sMismatch").textContent=I.filter(i=>i.type==="Copy Mismatch").length;
+  $("#sExtra").textContent=I.filter(i=>i.type==="Extra Section").length;
+  $("#sCta").textContent=I.filter(i=>i.type==="CTA Issue"||i.type==="Link Review").length;
+  $("#sMatch").textContent=liveScore()+"%";
+  $("#summaryMeta").textContent=`· ${state.meta.client||"—"} · ${state.meta.page||"—"} · ${state.meta.cms} · ${state.approvedCount} approved vs ${state.pageCount} page blocks`;
+}
+function renderTable(filter){
+  const body=$("#issuesBody");let rows=state.allIssues;
+  if(filter==="all")rows=rows.filter(i=>i.type!=="Observation");           // All = errors; Observations have their own tab
+  else if(filter==="CTA Issue")rows=rows.filter(i=>i.type==="CTA Issue"||i.type==="Link Review");
+  else rows=rows.filter(i=>i.type===filter);
+  // keep priority order, but push resolved (checked) rows to the bottom
+  rows=rows.map((i,idx)=>({i,idx,done:state.done.has(issueId(i))})).sort((a,b)=>(a.done-b.done)||(a.idx-b.idx));
+  if(!rows.length){body.innerHTML=`<tr><td colspan="7" class="no-rows">✓ No issues in this category.</td></tr>`;$("#rowCount").textContent="0 issues";return;}
+  const canLocate=!!state.docKind;
+  body.innerHTML=rows.map(({i,done})=>{const id=issueId(i);return `<tr class="${done?'done':''}">
+    <td>${esc(i.section)}</td>
+    <td class="view-cell">${canLocate?`<button class="locate-btn" data-loc="${esc(id)}" title="Preview in the document"><svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>`:""}</td>
+    <td><span class="type-pill">${esc(i.type)}</span></td>
+    <td class="cell-approved">${i.approved==="—"?'<span class="empty-dash">—</span>':esc(i.approved)}</td>
+    <td class="cell-current">${i.current==="—"?'<span class="empty-dash">—</span>':esc(i.current)}</td>
+    <td>${esc(i.fix)}</td>
+    <td class="done-cell"><button class="done-btn${done?' undo':''}" data-id="${esc(id)}" title="${done?'Mark as not done':'Mark as resolved'}">${done?'Done':'In progress'}</button></td></tr>`;}).join("");
+  body.querySelectorAll(".done-btn").forEach(btn=>btn.addEventListener("click",()=>{
+    if(state.done.has(btn.dataset.id))state.done.delete(btn.dataset.id);else state.done.add(btn.dataset.id);
+    renderSummary();  // Match Score + tab counts move live as issues get resolved/unresolved
+    renderTable(state.activeFilter||"all");
+  }));
+  body.querySelectorAll(".locate-btn").forEach(b=>b.addEventListener("click",()=>{
+    const iss=state.allIssues.find(x=>issueId(x)===b.dataset.loc); if(iss)locateIssue(iss);
+  }));
+  const open=rows.filter(r=>!r.done).length;
+  $("#rowCount").textContent=`${rows.length} row${rows.length===1?"":"s"} · ${open} open`;
+}
+/* ---------------- locate in document ---------------- */
+function openLocate(sub){$("#locateSub").textContent=sub||"";$("#locateModal").classList.remove("hidden");}
+$("#closeLocate")&&$("#closeLocate").addEventListener("click",()=>$("#locateModal").classList.add("hidden"));
+$("#locateModal")&&$("#locateModal").addEventListener("click",e=>{if(e.target.id==="locateModal")$("#locateModal").classList.add("hidden");});
+
+function showDocText(text,sub){
+  const body=$("#locateBody"),doc=state.docText||"";
+  const needle=(text||"").trim().slice(0,80),idx=needle?doc.toLowerCase().indexOf(needle.toLowerCase()):-1;
+  let html;
+  if(idx>=0){const end=Math.min(doc.length,idx+(text||"").length);
+    html=esc(doc.slice(0,idx))+'<mark class="doc-hit" id="docHit">'+esc(doc.slice(idx,end))+'</mark>'+esc(doc.slice(end));}
+  else html=esc(doc);
+  openLocate(sub||(idx>=0?"Highlighted in the document text":"Couldn’t pinpoint the exact spot — showing the document text"));
+  body.innerHTML='<div class="doc-text">'+html+'</div>';
+  setTimeout(()=>{const h=$("#docHit");if(h)h.scrollIntoView({block:"center"});},40);
+}
+async function locateIssue(issue){
+  const text=issue.approved&&issue.approved!=="—"?issue.approved:issue.current;
+  const body=$("#locateBody");const T=normKey(text);
+  if(state.docKind==="pdf"&&state.pdfDoc){
+    const matches=state.pdfLines.map(l=>({l,s:normKey(l.str)})).filter(o=>o.s.length>3&&(T.includes(o.s)||o.s.includes(T)));
+    const counts={};matches.forEach(m=>counts[m.l.page]=(counts[m.l.page]||0)+1);
+    const pageNum=matches.length?+Object.keys(counts).sort((a,b)=>counts[b]-counts[a])[0]:0;
+    const pageRef=pageNum?`Found on page ${pageNum} of ${state.pdfDoc.numPages}`:"";
+    openLocate((pageRef||"Approved copy")+" · rendering page…");body.innerHTML='<p class="muted small">Rendering page…</p>';
+    try{
+      if(!matches.length)throw new Error("no-match");
+      const pm=matches.filter(m=>m.l.page===pageNum).map(m=>m.l);
+      const page=await state.pdfDoc.getPage(pageNum);
+      const scale=1.6,viewport=page.getViewport({scale});
+      const canvas=document.createElement("canvas");canvas.width=viewport.width;canvas.height=viewport.height;
+      const ctx=canvas.getContext("2d");
+      await Promise.race([page.render({canvasContext:ctx,viewport}).promise,
+        new Promise((_,rej)=>setTimeout(()=>rej(new Error("render-timeout")),8000))]);
+      let topY=Infinity;
+      pm.forEach(m=>{const tl=viewport.convertToViewportPoint(m.x0,m.y1),br=viewport.convertToViewportPoint(m.x1,m.y0);
+        const x=Math.min(tl[0],br[0]),y=Math.min(tl[1],br[1]),w=Math.abs(br[0]-tl[0]),h=Math.abs(br[1]-tl[1]);
+        ctx.fillStyle="rgba(255,20,73,.30)";ctx.fillRect(x-2,y-2,w+4,h+4);
+        ctx.strokeStyle="rgba(255,20,73,.9)";ctx.lineWidth=2;ctx.strokeRect(x-2,y-2,w+4,h+4);
+        topY=Math.min(topY,y);});
+      openLocate(`${pageRef} · highlighted in pink`);
+      body.innerHTML="";body.appendChild(canvas);
+      setTimeout(()=>{body.scrollTop=Math.max(0,(topY/viewport.height)*canvas.clientHeight-90);},40);
+    }catch(e){
+      // page render unavailable → reliable text fallback with the page reference
+      showDocText(text, pageRef?`${pageRef} — showing the document text (page preview unavailable here).`:"Showing the document text.");
+    }
+  }else{
+    showDocText(text);  // DOCX / text
+  }
+}
+
+/* ---------------- export ---------------- */
+function exportCsv(){
+  const header=["Priority","Section","Issue Type","Approved Copy","Current Page Copy","Observations"];
+  const rows=state.allIssues.map(i=>[i.priority,i.section,i.type,i.approved,i.current,i.fix]);
+  const csv=[header,...rows].map(r=>r.map(c=>`"${String(c??"").replace(/"/g,'""')}"`).join(",")).join("\r\n");
+  const blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8;"});const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);a.download=((state.meta.client||"copy")+"_"+(state.meta.page||"qa")).replace(/\s+/g,"_")+"_QA.csv";a.click();
+  toast("CSV exported");
+}
+function copyReport(){
+  let txt=`COPY MATCH CHECKER — QA REPORT\nClient: ${state.meta.client||"—"}  |  Page: ${state.meta.page||"—"}\nURL: ${state.meta.url}\nCMS: ${state.meta.cms}  |  Match score: ${state.score}%\nTotal issues: ${state.allIssues.length}\n${"=".repeat(50)}\n\n`;
+  state.allIssues.forEach((i,n)=>{txt+=`${n+1}. [${i.priority}] ${i.type} — ${i.section}\n`;if(i.approved!=="—")txt+=`   Approved:     ${i.approved}\n`;if(i.current!=="—")txt+=`   Current:      ${i.current}\n`;txt+=`   Observations: ${i.fix}\n\n`;});
+  navigator.clipboard.writeText(txt).then(()=>toast("Report copied to clipboard"),()=>toast("Copy failed — clipboard blocked"));
+}
+
+/* ---------------- UI wiring ---------------- */
+function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.remove("hidden");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.add("hidden"),2300);}
+function setStatus(msg,cls){const el=$("#approvedStatus");el.textContent=msg;el.className="status"+(cls?" "+cls:"");}
+
+const dz=$("#dropzone"),fileInput=$("#fileInput");
+dz.addEventListener("click",()=>fileInput.click());
+dz.addEventListener("dragover",e=>{e.preventDefault();dz.classList.add("drag");});
+dz.addEventListener("dragleave",()=>dz.classList.remove("drag"));
+dz.addEventListener("drop",e=>{e.preventDefault();dz.classList.remove("drag");if(e.dataTransfer.files[0])loadFile(e.dataTransfer.files[0]);});
+fileInput.addEventListener("change",e=>e.target.files[0]&&loadFile(e.target.files[0]));
+$("#clearFile").addEventListener("click",e=>{e.stopPropagation();state.approvedText="";state.approvedBlocks=[];state.pages=[];state.pdfDoc=null;state.pdfLines=[];state.docText="";state.docKind=null;fileInput.value="";$("#dropFilled").classList.add("hidden");$("#dropEmpty").classList.remove("hidden");hidePageSelect();setStatus("No approved copy loaded yet.");});
+
+function hidePageSelect(){$("#pageSelectField").classList.add("hidden");$("#pageSelect").innerHTML="";}
+function renderPageSelect(pages){
+  const field=$("#pageSelectField"),sel=$("#pageSelect");
+  if(pages.length<=1){field.classList.add("hidden");sel.innerHTML="";return;}
+  field.classList.remove("hidden");
+  sel.innerHTML=pages.map((p,i)=>`<option value="${i}">${esc(p.title)}</option>`).join("");
+}
+function selectPage(idx,opts){
+  const p=state.pages[idx];if(!p)return;
+  state.approvedBlocks=p.blocks;
+  $("#pageSelect").value=String(idx);
+  // On initial load, don't clobber a Page Name the user already typed; once they
+  // explicitly switch pages in the dropdown, syncing the name is the whole point.
+  if(opts&&opts.initial){if(!$("#pageName").value.trim())$("#pageName").value=p.title;}
+  else $("#pageName").value=p.title;
+  const multi=state.pages.length>1;
+  const dropped=p.rawCount-p.blocks.length;
+  const note=p.splitFailed?" — couldn't split this document into pages automatically, showing everything":"";
+  setStatus(`Loaded ${p.blocks.length} copy blocks${multi?` for "${p.title}"`:""}`+
+    `${dropped>0?` (ignored ${dropped} SEO/intro/instruction lines)`:""}${note}`+
+    `${state.isDocx?"":" — tip: use .docx to detect green/pink color coding"}.`,"ok");
+}
+$("#pageSelect").addEventListener("change",()=>selectPage(+$("#pageSelect").value));
+$("#pageUrl").addEventListener("blur",()=>{
+  if($("#clientName").value.trim())return;  // never clobber a name already typed
+  const url=$("#pageUrl").value.trim();
+  if(!/^https?:\/\//i.test(url))return;
+  const guess=guessSiteName(url);
+  if(guess)$("#clientName").value=guess;
+});
+
+async function loadFile(file){
+  try{
+    setStatus("Parsing "+file.name+"…");
+    const {rawText,raw,regionSEO,docKind,pdf,lines}=await handleFile(file);
+    if(!rawText||!rawText.trim()||!raw.length){state.approvedText="";state.approvedBlocks=[];state.pages=[];$("#dropEmpty").classList.remove("hidden");$("#dropFilled").classList.add("hidden");
+      hidePageSelect();setStatus("No usable copy found in this file. If it's a scanned/image PDF, the copy can't be read automatically.","err");toast("No readable copy in file");return;}
+    state.approvedText=rawText;state.isDocx=file.name.toLowerCase().endsWith(".docx");
+    state.docKind=docKind;state.pdfDoc=pdf||null;state.pdfLines=lines||[];state.docText=rawText;
+    $("#fileName").textContent=file.name;$("#fileMeta").textContent=`${file.name.split(".").pop().toUpperCase()} · ${(file.size/1024).toFixed(0)} KB`;
+    $("#dropEmpty").classList.add("hidden");$("#dropFilled").classList.remove("hidden");
+    setStatus("Splitting the document into pages…");
+    state.pages=await segmentPagesWithClaude(raw,regionSEO);
+    renderPageSelect(state.pages);
+    selectPage(0,{initial:true});
+  }catch(err){state.approvedText="";state.approvedBlocks=[];state.pages=[];hidePageSelect();setStatus((err.message||"Could not read file")+". Use .pdf or .docx (not old .doc).","err");toast("Failed to read file");}
+}
+
+$("#howBtn").addEventListener("click",()=>$("#howModal").classList.remove("hidden"));
+$("#closeHow").addEventListener("click",()=>$("#howModal").classList.add("hidden"));
+$("#howModal").addEventListener("click",e=>{if(e.target.id==="howModal")$("#howModal").classList.add("hidden");});
+$$("#summaryTabs .tab-stat").forEach(t=>t.addEventListener("click",()=>{if(t.dataset.filter!=="none")setActiveTab(t.dataset.filter);}));
+$("#exportCsv").addEventListener("click",exportCsv);
+$("#copyReport").addEventListener("click",copyReport);
+$("#runBtn").addEventListener("click",run);
+
+async function run(){
+  if(state.isRunning){state.runCtrl&&state.runCtrl.abort("cancelled");return;}  // Run button doubles as Cancel while running
+  if(!state.approvedBlocks||!state.approvedBlocks.length){toast("Upload the approved copy (PDF or Word) first");return;}
+  const url=$("#pageUrl").value.trim();
+  if(!/^https?:\/\//i.test(url)){toast("Enter a valid page URL");return;}
+  const sel={content:$("#scContent").checked,cta:$("#scCta").checked,links:$("#scLinks").checked};
+  if(!sel.content&&!sel.cta&&!sel.links){toast("Select at least one Scope option");return;}
+  const scope={nav:false,footer:false,cta:true,links:true};  // full-body extraction; Scope filters the checks below
+  const btn=$("#runBtn");state.isRunning=true;state.runCtrl=new AbortController();
+  btn.innerHTML=`<span class="spinner"></span> Cancel`;$("#runNote").textContent="";
+  try{
+    $("#runNote").textContent="Rendering the page (JavaScript included)…";
+    const html=await fetchPageHtml(url);
+    const cms=detectCms(html);const page=extractVisible(html,scope);
+    if(!page.fullText||page.fullText.length<20)throw new Error("Could not extract readable text from the page.");
+    state.done=new Set();  // fresh run → clear resolved marks
+    $("#runNote").textContent="Asking Claude to compare the copy…";
+    const cmp=await compareWithClaude(state.approvedBlocks,page);
+    const mechIssues=mechanicalAndLinkChecks(page,scope);
+    // Scope: keep only the requested categories of checks
+    const CONTENT_TYPES=new Set(["Missing Copy","Copy Mismatch","Extra Section","Typo","Spacing Issue","Punctuation Issue","Observation"]);
+    state.issues=[...cmp.issues,...mechIssues].filter(i=>i.type==="CTA Issue"?sel.cta:i.type==="Link Review"?sel.links:CONTENT_TYPES.has(i.type)?sel.content:true);
+    state.score=cmp.score;
+    state.approvedCount=state.approvedBlocks.filter(b=>b.kind!=="alternate").length;
+    state.pageCount=page.blocks.length;
+    state.meta={client:$("#clientName").value.trim(),page:$("#pageName").value.trim(),url,cms};
+    renderAll();
+    const obs=state.allIssues.filter(i=>i.type==="Observation").length;
+    $("#runNote").textContent=`Done · ${cms} · ${page.ctas.length} CTAs · ${page.links.length} links${obs?` · ${obs} observation${obs===1?"":"s"}`:""}`;
+    toast(`QA complete — ${countType("all")} issues`);
+  }catch(err){
+    if(err.message==="Cancelled by user."){$("#runNote").textContent="Cancelled.";toast("QA check cancelled");}
+    else{$("#runNote").textContent="";toast("Check failed");alert("Could not complete the check:\n\n"+(err.message||err));}
+  }finally{state.isRunning=false;state.runCtrl=null;btn.innerHTML=`<svg class="ico ico-sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Run QA Check`;}
+}
+</script>
+</body>
+</html>

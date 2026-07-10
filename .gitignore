@@ -1,0 +1,12 @@
+# Client copy decks for manual testing (confidential + large) — never commit
+sample-decks/
+
+# Env files (defense in depth; backend/.gitignore also covers backend/.env)
+.env
+
+# OS / Python / tooling cruft
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+.playwright/

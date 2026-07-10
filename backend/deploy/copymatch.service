@@ -1,0 +1,29 @@
+# Copy Match Checker backend — systemd unit (Linux/VPS).
+# Install to /etc/systemd/system/copymatch.service, then:
+#   sudo systemctl daemon-reload && sudo systemctl enable --now copymatch
+# Logs: journalctl -u copymatch -f
+[Unit]
+Description=Copy Match Checker backend (serve.py: /render + /ai/*)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=copymatch
+Group=copymatch
+WorkingDirectory=/opt/copymatch
+# .env (ANTHROPIC_API_KEY, ALLOWED_ORIGIN, ...) is read by serve.py itself from
+# its own directory, so no EnvironmentFile= is needed here.
+ExecStart=/opt/copymatch/.venv/bin/python /opt/copymatch/serve.py 5500
+Restart=on-failure
+RestartSec=3
+# Playwright needs a writable cache/home; keep the browser download under the app dir.
+Environment=HOME=/opt/copymatch
+Environment=PLAYWRIGHT_BROWSERS_PATH=/opt/copymatch/.playwright
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

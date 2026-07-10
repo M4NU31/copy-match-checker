@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Copy Match Checker · Punch Toolkit</title>
+  <link rel="stylesheet" href="styles.css" />
+  <!-- Document parsers (PDF + Word) loaded from CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+</head>
+<body>
+  <div class="app">
+    <!-- ============ HEADER ============ -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">CM</div>
+        <div>
+          <h1>Copy Match Checker</h1>
+          <p class="subtitle">Compare approved copy (PDF, Word or Google Doc) against the content implemented on a live or staging page.</p>
+        </div>
+      </div>
+      <div class="brand-side">
+        <span class="kit-tag">Punch Toolkit</span>
+        <button class="btn btn-ghost" id="howItWorksBtn">📖 How it works</button>
+      </div>
+    </header>
+
+    <!-- ============ INPUT PANELS ============ -->
+    <section class="grid-2">
+      <!-- Left: Approved copy -->
+      <div class="card">
+        <div class="card-head">
+          <h2>1. Approved Copy</h2>
+          <span class="muted">PDF · Word · Google Doc</span>
+        </div>
+
+        <div class="field-row">
+          <label class="field">
+            <span>Client Name</span>
+            <input type="text" id="clientName" placeholder="e.g. Fortreum" />
+          </label>
+          <label class="field">
+            <span>Page Name</span>
+            <input type="text" id="pageName" placeholder="e.g. About / CMMC Landing" />
+          </label>
+        </div>
+
+        <div class="source-tabs" role="tablist">
+          <button class="src-tab active" data-src="file">Upload PDF / Word</button>
+          <button class="src-tab" data-src="gdoc">Google Doc URL</button>
+          <button class="src-tab" data-src="paste">Paste Copy</button>
+        </div>
+
+        <!-- File upload -->
+        <div class="src-pane active" data-pane="file">
+          <div class="dropzone" id="dropzone">
+            <input type="file" id="fileInput" accept=".pdf,.docx" hidden />
+            <div id="dropEmpty">
+              <div class="drop-icon">⬆</div>
+              <p><strong>Upload file</strong> or drag &amp; drop</p>
+              <p class="muted small">Supports: PDF, DOCX · Max ~10 MB</p>
+            </div>
+            <div id="dropFilled" class="hidden">
+              <div class="file-chip">
+                <span class="file-ico">📄</span>
+                <div>
+                  <strong id="fileName">file.docx</strong>
+                  <div class="muted small" id="fileMeta">DOCX · 0 KB</div>
+                </div>
+                <button class="x" id="clearFile" title="Remove">✕</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Google Doc -->
+        <div class="src-pane" data-pane="gdoc">
+          <label class="field">
+            <span>Google Doc URL</span>
+            <input type="text" id="gdocUrl" placeholder="https://docs.google.com/document/d/.../edit" />
+          </label>
+
+          <div class="gauth">
+            <div class="gauth-row">
+              <button class="btn btn-outline" id="loadGdoc">📄 Load text (no login)</button>
+              <button class="btn btn-outline" id="connectGoogle">🔗 Connect Google (comments)</button>
+              <button class="btn btn-ghost" id="demoComments">🧪 Demo comments</button>
+            </div>
+            <details class="gauth-cfg">
+              <summary class="muted small">Google API setup (one-time, for comment review)</summary>
+              <label class="field">
+                <span>OAuth Client ID</span>
+                <input type="text" id="gClientId" placeholder="xxxx.apps.googleusercontent.com" />
+              </label>
+              <p class="muted small">
+                Create an OAuth 2.0 Client ID (type: Web) in Google Cloud Console, enable the
+                <strong>Google Drive API</strong>, and add this page's origin (e.g.
+                <code>http://localhost:5500</code>) as an authorized JavaScript origin. Scope used:
+                <code>drive.readonly</code>. The token stays in your browser — nothing is sent to a server.
+              </p>
+            </details>
+          </div>
+          <div class="approved-status small" id="gauthStatus" style="margin-top:10px;">
+            Not connected. "Load text" reads a link-shared doc; "Connect Google" enables comment &amp; reply review.
+          </div>
+        </div>
+
+        <!-- Paste -->
+        <div class="src-pane" data-pane="paste">
+          <label class="field">
+            <span>Paste the approved copy</span>
+            <textarea id="pasteApproved" rows="7" placeholder="Paste the approved copy text here..."></textarea>
+          </label>
+        </div>
+
+        <div class="approved-status" id="approvedStatus">No approved copy loaded yet.</div>
+      </div>
+
+      <!-- Right: URL + scope -->
+      <div class="card">
+        <div class="card-head">
+          <h2>2. Page to Compare</h2>
+          <span class="muted">Staging or Live</span>
+        </div>
+
+        <label class="field">
+          <span>Page URL(s) — one per line for multi-URL compare</span>
+          <div class="url-row">
+            <span class="url-ico url-ico-top">🌐</span>
+            <textarea id="pageUrl" rows="2" placeholder="https://staging.client.com/about&#10;https://staging.client.com/thank-you"></textarea>
+          </div>
+        </label>
+
+        <div class="field-row">
+          <label class="field">
+            <span>Page Type</span>
+            <select id="pageType">
+              <option value="auto">Auto-detect</option>
+              <option value="cms">CMS page (WordPress / HubSpot)</option>
+              <option value="static">Static HTML page</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Fetch method</span>
+            <select id="fetchMethod">
+              <option value="proxy">Auto-fetch (CORS proxy)</option>
+              <option value="paste">Paste page HTML / text</option>
+            </select>
+          </label>
+        </div>
+
+        <!-- Paste page fallback -->
+        <div class="field" id="pastePageWrap" style="display:none;">
+          <span>Paste page HTML or visible text</span>
+          <textarea id="pastePage" rows="5" placeholder="View the page source (Ctrl+U) or select-all the rendered page and paste here..."></textarea>
+        </div>
+
+        <fieldset class="scope">
+          <legend>Scope</legend>
+          <label class="chk"><input type="checkbox" id="scMain" checked /> Main content</label>
+          <label class="chk"><input type="checkbox" id="scNav" /> Navigation</label>
+          <label class="chk"><input type="checkbox" id="scFooter" /> Footer</label>
+          <label class="chk"><input type="checkbox" id="scCta" checked /> CTAs / Buttons</label>
+          <label class="chk"><input type="checkbox" id="scLinks" checked /> Links</label>
+        </fieldset>
+
+        <div class="run-actions">
+          <button class="btn btn-primary btn-lg" id="runBtn">🔍 Run QA Check</button>
+          <button class="btn btn-outline" id="dictBtn" title="Per-client acronym dictionary">📚 Acronyms</button>
+          <button class="btn btn-outline" id="historyBtn" title="Saved runs for this browser">🕑 History</button>
+        </div>
+        <div class="run-note muted small" id="runNote"></div>
+      </div>
+    </section>
+
+    <!-- ============ RESULTS ============ -->
+    <section id="results" class="hidden">
+      <!-- Multi-URL switcher -->
+      <div class="run-switcher hidden" id="runSwitcher"></div>
+
+      <!-- Side-by-side comparison (multi-URL) -->
+      <div class="card hidden" id="compareCard" style="margin-bottom:18px;">
+        <div class="card-head">
+          <h2>Side-by-Side · Issues across URLs</h2>
+          <span class="muted small" id="compareMeta"></span>
+        </div>
+        <div class="table-wrap" id="compareBody"></div>
+      </div>
+
+      <!-- Summary cards -->
+      <div class="card summary-card">
+        <div class="card-head"><h2>Summary</h2><span class="muted" id="summaryMeta"></span></div>
+        <div class="summary">
+          <div class="stat"><div class="num c-total" id="sTotal">0</div><div class="lbl">Total Issues</div></div>
+          <div class="stat"><div class="num c-red" id="sMissing">0</div><div class="lbl">Missing Copy</div></div>
+          <div class="stat"><div class="num c-amber" id="sMismatch">0</div><div class="lbl">Copy Mismatch</div></div>
+          <div class="stat"><div class="num c-blue" id="sExtra">0</div><div class="lbl">Extra Copy</div></div>
+          <div class="stat"><div class="num c-purple" id="sAcr">0</div><div class="lbl">Acronym Issues</div></div>
+          <div class="stat"><div class="num c-pink" id="sCta">0</div><div class="lbl">CTA / Link</div></div>
+          <div class="stat"><div class="num c-green" id="sMatch">0%</div><div class="lbl">Match Score</div></div>
+        </div>
+      </div>
+
+      <div class="grid-main">
+        <!-- Left: issue tabs + table -->
+        <div class="card">
+          <div class="tabs" id="issueTabs">
+            <button class="tab active" data-filter="all">All Issues <span class="count" id="cAll">0</span></button>
+            <button class="tab" data-filter="Missing Copy">Missing <span class="count" id="cMissing">0</span></button>
+            <button class="tab" data-filter="Copy Mismatch">Mismatch <span class="count" id="cMismatch">0</span></button>
+            <button class="tab" data-filter="Extra Section">Extra <span class="count" id="cExtra">0</span></button>
+            <button class="tab" data-filter="Acronym Issue">Acronyms <span class="count" id="cAcr">0</span></button>
+            <button class="tab" data-filter="CTA Issue">CTA / Link <span class="count" id="cCta">0</span></button>
+            <button class="tab" data-filter="Google Doc Comment Issue">GDoc <span class="count" id="cGdoc">0</span></button>
+          </div>
+
+          <div class="table-wrap">
+            <table class="issues">
+              <thead>
+                <tr>
+                  <th>Priority</th><th>Section</th><th>Issue Type</th>
+                  <th>Approved Copy</th><th>Current Page Copy</th><th>Suggested Fix</th>
+                </tr>
+              </thead>
+              <tbody id="issuesBody"></tbody>
+            </table>
+          </div>
+          <div class="table-foot">
+            <span class="muted small" id="rowCount">0 issues</span>
+            <div class="export-btns">
+              <button class="btn btn-outline" id="exportCsv">⬇ Export CSV</button>
+              <button class="btn btn-outline" id="copyReport">📋 Copy Report</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: side panels -->
+        <aside class="side">
+          <div class="card">
+            <div class="card-head"><h2>Acronym Review</h2><span class="badge" id="acrCount">0</span></div>
+            <div id="acronymList" class="acr-list"></div>
+          </div>
+        </aside>
+      </div>
+
+      <!-- Google Doc Comments Review (full width) -->
+      <div class="card" id="gdocCard" style="margin-top:18px;">
+        <div class="card-head">
+          <h2>Google Doc Comments Review</h2>
+          <span class="badge badge-muted" id="gdocBadge">Not connected</span>
+        </div>
+        <div id="gdocComments">
+          <p class="muted small">Connect a Google Doc (or load demo data) to surface open / resolved threads,
+          client &amp; copywriter feedback, and version drift between the latest doc and the page.</p>
+        </div>
+      </div>
+    </section>
+
+    <footer class="appfoot">
+      <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
+      <span class="muted small">Copy Match Checker · v0.4 (Dictionaries + Compare) · Punch Toolkit</span>
+    </footer>
+  </div>
+
+  <!-- How it works modal -->
+  <div class="modal hidden" id="howModal">
+    <div class="modal-box">
+      <div class="modal-head"><h3>How it works</h3><button class="x" id="closeHow">✕</button></div>
+      <ol class="how-steps">
+        <li><strong>Load approved copy</strong> — upload a PDF/Word file, paste the text, or point to a shared Google Doc.</li>
+        <li><strong>Enter the page URL</strong> and pick a scope (main content, nav, footer, CTAs, links).</li>
+        <li><strong>Run QA Check</strong> — the tool extracts visible text from the page and compares it block-by-block.</li>
+        <li><strong>Review results</strong> — prioritized table of missing copy, mismatches, extra sections, acronym and CTA issues.</li>
+        <li><strong>Export</strong> the report as CSV or copy it to paste into Asana / a ticket.</li>
+      </ol>
+      <p class="muted small">Note: browsers block cross-origin requests. Auto-fetch uses a public CORS proxy; if it fails (auth-walled or blocked pages), switch <em>Fetch method</em> to <strong>Paste page HTML / text</strong>.</p>
+    </div>
+  </div>
+
+  <!-- Acronym dictionary modal -->
+  <div class="modal hidden" id="dictModal">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3>Acronym Dictionary</h3>
+        <button class="x" id="closeDict">✕</button>
+      </div>
+      <p class="muted small">Custom acronyms for <strong id="dictClient">(no client)</strong>, saved in this browser.
+        They extend the built-in security dictionary (CMMC, POA&amp;M, ConMon, ATO, FedRAMP, NIST, SSP, RMF) and feed the Acronym Checker.</p>
+
+      <div class="dict-add">
+        <input type="text" id="dictCanon" placeholder="Acronym (e.g. SPRS)" />
+        <input type="text" id="dictFull" placeholder="Full term (e.g. Supplier Performance Risk System)" />
+        <button class="btn btn-outline" id="dictAdd">＋ Add</button>
+      </div>
+
+      <div class="dict-list" id="dictList"></div>
+
+      <details class="gauth-cfg" style="margin-top:12px;">
+        <summary class="muted small">Built-in dictionary (read-only)</summary>
+        <div class="dict-builtin" id="dictBuiltin"></div>
+      </details>
+    </div>
+  </div>
+
+  <!-- History modal -->
+  <div class="modal hidden" id="historyModal">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3>Saved Runs</h3>
+        <button class="x" id="closeHistory">✕</button>
+      </div>
+      <p class="muted small">Stored locally in this browser (last 25 batches). Click a run to restore its report.</p>
+      <div id="historyList" class="history-list"></div>
+      <div style="margin-top:14px; text-align:right;">
+        <button class="btn btn-outline" id="clearHistory">🗑 Clear history</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast hidden" id="toast"></div>
+
+  <!-- Google Identity Services (for Drive comments OAuth) -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="app.js"></script>
+</body>
+</html>

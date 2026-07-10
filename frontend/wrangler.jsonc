@@ -1,0 +1,9 @@
+{
+  // Declares this repo as a Cloudflare PAGES project (not a Worker). The presence
+  // of pages_build_output_dir makes the build system run a Pages deploy and pick
+  // up the functions/ directory (the /api/* proxy) instead of `wrangler deploy`.
+  // The "name" must match the Pages project name in the dashboard.
+  "name": "copy-match-checker-front",
+  "compatibility_date": "2026-07-08",
+  "pages_build_output_dir": "."
+}
