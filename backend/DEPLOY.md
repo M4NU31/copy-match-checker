@@ -152,6 +152,22 @@ step above (`pip install -r backend/requirements.txt`) must run once on the
 VPS for the dashboard to work — until then `serve.py` still starts and
 everything else keeps working, but `/projects` replies with a clear 503.
 
+**2026-07-10: added per-run revision history (`project_runs`), including the
+approved-copy file itself.** Every "Run QA Check" now uploads the approved
+PDF/Word file (base64-encoded) to `/projects/{id}/run`, so past versions can
+be re-downloaded later. `git pull` alone does NOT update the live nginx
+config — a dev must also, once:
+
+```bash
+sudo cp /opt/copymatch/backend/deploy/nginx-copymatch.conf /etc/nginx/sites-available/copymatch
+# re-apply the real PROXY_SECRET into the X-Proxy-Secret line (the repo copy has a placeholder)
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Until that runs, `client_max_body_size` stays at the old 8m and a run against
+a several-MB approved-copy file will fail at nginx with a 413 — everything
+else (including runs against smaller files) keeps working normally.
+
 ## Restricting access (currently open)
 
 No domain/TLS/auth yet — anyone with the IP can use it and spend the Claude key.

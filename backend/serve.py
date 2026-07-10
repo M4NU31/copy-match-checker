@@ -22,6 +22,7 @@ import re
 import gzip
 import io
 import json
+import base64
 import functools
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 5500
@@ -418,6 +419,28 @@ def init_db():
                     last_run_at TIMESTAMPTZ
                 );
             """)
+            # One row per "Run QA Check" click — an immutable snapshot (score,
+            # issues, and the exact approved-copy file used), so the team can
+            # answer "which version of the copy did we compare on July 5th?"
+            # without overwriting the previous answer on the next run. Separate
+            # from `projects` (the mutable "current" state the dashboard/grid
+            # reads) so this table only ever grows, never gets rewritten.
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS project_runs (
+                    id SERIAL PRIMARY KEY,
+                    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                    ran_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    site_name TEXT NOT NULL DEFAULT '',
+                    page_name TEXT NOT NULL DEFAULT '',
+                    page_url TEXT NOT NULL DEFAULT '',
+                    score INTEGER,
+                    issues JSONB NOT NULL DEFAULT '[]'::jsonb,
+                    doc_filename TEXT,
+                    doc_content_type TEXT,
+                    doc_bytes BYTEA
+                );
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_project_runs_project_id ON project_runs(project_id, ran_at DESC);")
         conn.commit()
     finally:
         conn.close()
@@ -492,6 +515,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         m = re.match(r"^/projects/(\d+)$", self.path)
         if m:
             return self.handle_project_get(int(m.group(1)))
+        m = re.match(r"^/projects/(\d+)/runs$", self.path)
+        if m:
+            return self.handle_runs_list(int(m.group(1)))
+        m = re.match(r"^/projects/(\d+)/runs/(\d+)/document$", self.path)
+        if m:
+            return self.handle_run_document(int(m.group(1)), int(m.group(2)))
+        m = re.match(r"^/projects/(\d+)/runs/(\d+)$", self.path)
+        if m:
+            return self.handle_run_get(int(m.group(1)), int(m.group(2)))
         return super().do_GET()
 
     def do_POST(self):
@@ -641,16 +673,101 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             issues = payload.get("issues")
             issues = issues if isinstance(issues, list) else []
             score = payload.get("score")
+            score = score if isinstance(score, (int, float)) else None
+            site_name = payload.get("site_name") or ""
+            page_name = payload.get("page_name") or ""
+            page_url = payload.get("page_url") or ""
+            doc = payload.get("document") or {}
+            doc_filename = doc.get("filename")
+            doc_content_type = doc.get("content_type")
+            doc_bytes = None
+            if doc.get("data_base64"):
+                try:
+                    doc_bytes = base64.b64decode(doc["data_base64"])
+                except Exception:  # noqa: BLE001
+                    doc_bytes = None
             row = db_query(
                 f"""UPDATE projects SET site_name=%s, page_name=%s, page_url=%s, score=%s,
                     issues=%s::jsonb, last_run_at=now(), updated_at=now()
                     WHERE id=%s RETURNING {PROJECT_COLUMNS}""",
-                (payload.get("site_name") or "", payload.get("page_name") or "", payload.get("page_url") or "",
-                 score if isinstance(score, (int, float)) else None, json.dumps(issues), pid),
+                (site_name, page_name, page_url, score, json.dumps(issues), pid),
                 fetch="one")
             if not row:
                 return self._send(404, "application/json", json.dumps({"error": "Project not found"}).encode("utf-8"))
+            # Every run also lands as a new, immutable project_runs row — the
+            # history/version trail. Never updated afterward, unlike `projects`.
+            db_query(
+                """INSERT INTO project_runs (project_id, site_name, page_name, page_url, score, issues,
+                    doc_filename, doc_content_type, doc_bytes)
+                   VALUES (%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s)""",
+                (pid, site_name, page_name, page_url, score, json.dumps(issues),
+                 doc_filename, doc_content_type, doc_bytes))
             self._send(200, "application/json", json.dumps(_project_full(row)).encode("utf-8"))
+        except Exception as e:  # noqa: BLE001
+            self._send(502, "application/json", json.dumps({"error": str(e)}).encode("utf-8"))
+
+    def handle_runs_list(self, pid):
+        if not self._secret_ok():
+            return
+        if not DB_AVAILABLE:
+            return self._db_unavailable()
+        try:
+            rows = db_query(
+                "SELECT id, ran_at, score, issues, doc_filename FROM project_runs "
+                "WHERE project_id=%s ORDER BY ran_at DESC", (pid,), fetch="all")
+            runs = []
+            for (rid, ran_at, score, issues, doc_filename) in rows:
+                issues = issues or []
+                total = len([i for i in issues if isinstance(i, dict) and i.get("type") != "Observation"])
+                runs.append({
+                    "id": rid, "ran_at": ran_at.isoformat() if ran_at else None,
+                    "score": score, "issues_total": total, "doc_filename": doc_filename,
+                })
+            self._send(200, "application/json", json.dumps({"runs": runs}).encode("utf-8"))
+        except Exception as e:  # noqa: BLE001
+            self._send(502, "application/json", json.dumps({"error": str(e)}).encode("utf-8"))
+
+    def handle_run_get(self, pid, run_id):
+        if not self._secret_ok():
+            return
+        if not DB_AVAILABLE:
+            return self._db_unavailable()
+        try:
+            row = db_query(
+                "SELECT id, ran_at, site_name, page_name, page_url, score, issues, doc_filename "
+                "FROM project_runs WHERE id=%s AND project_id=%s", (run_id, pid), fetch="one")
+            if not row:
+                return self._send(404, "application/json", json.dumps({"error": "Run not found"}).encode("utf-8"))
+            (rid, ran_at, site_name, page_name, page_url, score, issues, doc_filename) = row
+            self._send(200, "application/json", json.dumps({
+                "id": rid, "ran_at": ran_at.isoformat() if ran_at else None,
+                "site_name": site_name, "page_name": page_name, "page_url": page_url,
+                "score": score, "issues": issues or [], "doc_filename": doc_filename,
+            }).encode("utf-8"))
+        except Exception as e:  # noqa: BLE001
+            self._send(502, "application/json", json.dumps({"error": str(e)}).encode("utf-8"))
+
+    def handle_run_document(self, pid, run_id):
+        if not self._secret_ok():
+            return
+        if not DB_AVAILABLE:
+            return self._db_unavailable()
+        try:
+            row = db_query(
+                "SELECT doc_filename, doc_content_type, doc_bytes FROM project_runs "
+                "WHERE id=%s AND project_id=%s", (run_id, pid), fetch="one")
+            if not row or not row[2]:
+                return self._send(404, "application/json",
+                                   json.dumps({"error": "No document stored for this run"}).encode("utf-8"))
+            filename, content_type, data = row
+            filename = (filename or "approved-copy").replace('"', "")
+            self.send_response(200)
+            self.send_header("Content-Type", content_type or "application/octet-stream")
+            self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+            self._write_cors_headers()
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
         except Exception as e:  # noqa: BLE001
             self._send(502, "application/json", json.dumps({"error": str(e)}).encode("utf-8"))
 

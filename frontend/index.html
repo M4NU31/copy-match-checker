@@ -245,6 +245,73 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .proj-error{color:var(--pink-2);}
 .proj-header{display:flex; align-items:center; gap:14px; margin-bottom:20px;}
 .proj-header h2{margin:0; font-size:19px;}
+
+/* ---------- revision history modal ---------- */
+.history-trigger{
+  margin-left:auto; background:var(--card); border:1px solid var(--border-2); color:var(--text-2);
+  border-radius:20px; padding:8px 14px 8px 12px; font-size:13px; font-weight:600; display:inline-flex;
+  align-items:center; gap:7px; cursor:pointer; transition:.15s;
+}
+.history-trigger:hover{border-color:var(--pink); color:var(--pink-2);}
+.history-trigger .ico{color:var(--pink);}
+.history-trigger .count{background:var(--pink-dim); color:var(--pink-2); border-radius:20px; padding:1px 8px; font-size:11.5px;}
+.hist-box{width:100%; max-width:700px; max-height:min(88vh,820px); display:flex; flex-direction:column; padding:0; overflow:hidden;}
+.hist-head{display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:22px 24px 16px; border-bottom:1px solid var(--border);}
+.hist-head h3{margin:0 0 3px;} .hist-head p{margin:0; color:var(--text-2); font-size:12.5px;}
+.hist-body{overflow-y:auto; padding:20px 24px 24px;}
+.spark-wrap{background:var(--input); border:1px solid var(--border); border-radius:12px; padding:16px 18px 10px; margin-bottom:20px;}
+.spark-top{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:2px;}
+.spark-top .lbl{font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); font-weight:600;}
+.spark-top .now{font-size:22px; font-weight:800; color:var(--text); font-variant-numeric:tabular-nums;}
+.spark-top .now .unit{font-size:13px; color:var(--muted); font-weight:600; margin-left:2px;}
+.spark-svg{width:100%; height:120px; display:block; overflow:visible;}
+.spark-grid{stroke:var(--border); stroke-width:1;}
+.spark-area{fill:url(#sparkGrad);}
+.spark-line{fill:none; stroke:var(--pink); stroke-width:2; stroke-linecap:round; stroke-linejoin:round;}
+.spark-dot{stroke:var(--card); stroke-width:2;}
+.spark-endlabel{font-size:11px; font-weight:700; fill:var(--text); font-variant-numeric:tabular-nums;}
+.spark-axis text{font-size:10.5px; fill:var(--muted); font-family:inherit;}
+.crosshair{stroke:var(--border-2); stroke-width:1; stroke-dasharray:2 3; pointer-events:none; opacity:0;}
+.spark-tooltip{position:absolute; pointer-events:none; background:var(--card-2); border:1px solid var(--border-2);
+  border-radius:8px; padding:8px 11px; font-size:11.5px; color:var(--text-2); white-space:nowrap;
+  box-shadow:0 8px 20px rgba(0,0,0,.4); opacity:0; transition:opacity .1s; transform:translate(-50%,-100%);}
+.spark-tooltip strong{color:var(--text); font-variant-numeric:tabular-nums;}
+.spark-hit{fill:transparent;}
+.run-list{display:flex; flex-direction:column; gap:8px;}
+.run-row{border:1px solid var(--border); border-radius:11px; background:var(--input); overflow:hidden;}
+.run-row.current{border-color:rgba(255,20,73,.4); background:var(--pink-dim);}
+.run-summary{display:flex; align-items:center; gap:12px; padding:12px 14px; cursor:pointer; flex-wrap:wrap;}
+.run-when{flex:none; width:150px;}
+.run-when .d{font-weight:600; color:var(--text); font-size:13px;}
+.run-when .t{color:var(--muted); font-size:11.5px;}
+.run-score{flex:none; font-size:12.5px; font-weight:800; padding:3px 10px; border-radius:20px; font-variant-numeric:tabular-nums;}
+.run-score.good{color:var(--green); background:rgba(47,214,166,.12); border:1px solid rgba(47,214,166,.35);}
+.run-score.mid{color:var(--amber); background:rgba(245,165,36,.12); border:1px solid rgba(245,165,36,.35);}
+.run-score.bad{color:var(--pink-2); background:var(--pink-dim); border:1px solid rgba(255,20,73,.35);}
+.run-score.na{color:var(--muted); background:var(--card-2); border:1px solid var(--border-2);}
+.run-issues{flex:none; color:var(--text-2); font-size:12px; width:96px;}
+.run-doc{flex:1; color:var(--text-2); font-size:12px; min-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.run-delta{flex:none; font-size:12px; font-weight:600; font-variant-numeric:tabular-nums; width:130px;}
+.run-delta.up{color:var(--green);} .run-delta.down{color:var(--pink-2);} .run-delta.flat{color:var(--muted);}
+.run-current-tag{flex:none; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.5px;
+  color:var(--pink-2); background:var(--pink-dim); border:1px solid rgba(255,20,73,.3); border-radius:6px; padding:3px 7px;}
+.run-toggle{flex:none; color:var(--muted); display:flex; align-items:center; gap:5px; font-size:12px; font-weight:600;}
+.run-toggle .ico{width:14px; height:14px; transition:transform .15s;}
+.run-row.open .run-toggle .ico{transform:rotate(90deg);}
+.run-detail{display:none; border-top:1px solid var(--border); padding:4px 14px 14px;}
+.run-row.open .run-detail{display:block;}
+.readonly-tag{display:flex; align-items:center; justify-content:space-between; gap:6px; color:var(--muted); font-size:11px; margin:10px 0;}
+.readonly-tag .ico{width:12px; height:12px;}
+.run-download{color:var(--pink-2); text-decoration:none; font-weight:600; display:inline-flex; align-items:center; gap:5px;}
+.run-download:hover{color:var(--pink);}
+.detail-table{width:100%; border-collapse:collapse; font-size:12.5px;}
+.detail-table th{text-align:left; color:var(--muted); font-weight:600; font-size:10.5px; text-transform:uppercase;
+  letter-spacing:.4px; padding:7px 8px; border-bottom:1px solid var(--border);}
+.detail-table td{padding:9px 8px; border-bottom:1px solid var(--border); vertical-align:top; color:var(--text-2);}
+.detail-table tr:last-child td{border-bottom:none;}
+.detail-table .cur{color:var(--text);}
+.hist-empty,.hist-loading{color:var(--muted); text-align:center; padding:30px 10px;}
+@media (max-width:640px){.run-when{width:104px;} .run-issues,.run-doc{display:none;}}
 </style>
 </head>
 <body>
@@ -293,6 +360,10 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
         Projects
       </button>
       <h2 id="projectTitleHeading"></h2>
+      <button class="history-trigger hidden" id="historyTrigger">
+        <svg class="ico ico-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Historial <span class="count" id="historyCount">0</span>
+      </button>
     </div>
 
   <!-- ============ INPUTS ============ -->
@@ -400,7 +471,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10c · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10d · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -410,6 +481,20 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
     <div class="modal-head"><h3><svg class="ico" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New project</h3><button class="x" id="closeAddProject"><svg class="ico" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
     <label class="field"><span>Project name</span><input type="text" id="newProjectName" placeholder="e.g. Fortreum — Accreditations" /></label>
     <button class="btn btn-primary btn-lg" id="createProjectBtn">Create project</button>
+  </div>
+</div>
+
+<!-- revision history modal -->
+<div class="modal hidden" id="historyModal">
+  <div class="modal-box hist-box">
+    <div class="hist-head">
+      <div>
+        <h3><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Historial de revisiones</h3>
+        <p id="historySub"></p>
+      </div>
+      <button class="x" id="closeHistory"><svg class="ico" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="hist-body" id="historyBody"></div>
   </div>
 </div>
 
@@ -449,7 +534,7 @@ const $=(s)=>document.querySelector(s), $$=(s)=>Array.from(document.querySelecto
 const API_BASE=(location.hostname==="localhost"||location.hostname==="127.0.0.1"||location.protocol==="file:")?"":(document.querySelector('meta[name="api-base"]')?.content||"").replace(/\/$/,"");
 const state={approvedText:"",approvedBlocks:[],pages:[],issues:[],allIssues:[],done:new Set(),
   docKind:null,pdfDoc:null,pdfLines:[],docText:"",isDocx:false,isRunning:false,runCtrl:null,
-  projectId:null,projects:[]};
+  projectId:null,projects:[],runs:[],runDetails:{},docFile:null};
 
 /* ---------------- projects API helpers ---------------- */
 async function apiCall(method,path,body){
@@ -464,6 +549,22 @@ const apiGet=(path)=>apiCall("GET",path);
 const apiPost=(path,body)=>apiCall("POST",path,body);
 const apiPut=(path,body)=>apiCall("PUT",path,body);
 const apiPatch=(path,body)=>apiCall("PATCH",path,body);
+
+/* The exact file the reviewer uploaded is sent to the backend on every run and
+   stored per-run (see project_runs in serve.py), so a later "Historial" view
+   can answer "which version of the copy did we compare on July 5th?" without
+   guessing from a filename alone. FileReader's own base64 encoding is used
+   (not a hand-rolled ArrayBuffer->base64 loop) since it's async and doesn't
+   block the UI thread on a multi-MB file. */
+function mimeFor(name){return /\.pdf$/i.test(name)?"application/pdf":"application/vnd.openxmlformats-officedocument.wordprocessingml.document";}
+function fileToBase64(file){
+  return new Promise((resolve,reject)=>{
+    const r=new FileReader();
+    r.onload=()=>resolve(r.result.split(",")[1]);
+    r.onerror=()=>reject(new Error("Could not read the file"));
+    r.readAsDataURL(file);
+  });
+}
 
 /* ---------------- text utils ---------------- */
 function normalize(s){return (s||"").replace(/\s+/g," ").replace(/[‘’]/g,"'").replace(/[“”]/g,'"').replace(/[–—]/g,"-").trim();}
@@ -1158,7 +1259,7 @@ dz.addEventListener("dragover",e=>{e.preventDefault();dz.classList.add("drag");}
 dz.addEventListener("dragleave",()=>dz.classList.remove("drag"));
 dz.addEventListener("drop",e=>{e.preventDefault();dz.classList.remove("drag");if(e.dataTransfer.files[0])loadFile(e.dataTransfer.files[0]);});
 fileInput.addEventListener("change",e=>e.target.files[0]&&loadFile(e.target.files[0]));
-$("#clearFile").addEventListener("click",e=>{e.stopPropagation();state.approvedText="";state.approvedBlocks=[];state.pages=[];state.pdfDoc=null;state.pdfLines=[];state.docText="";state.docKind=null;fileInput.value="";$("#dropFilled").classList.add("hidden");$("#dropEmpty").classList.remove("hidden");hidePageSelect();setStatus("No approved copy loaded yet.");});
+$("#clearFile").addEventListener("click",e=>{e.stopPropagation();state.approvedText="";state.approvedBlocks=[];state.pages=[];state.pdfDoc=null;state.pdfLines=[];state.docText="";state.docKind=null;state.docFile=null;fileInput.value="";$("#dropFilled").classList.add("hidden");$("#dropEmpty").classList.remove("hidden");hidePageSelect();setStatus("No approved copy loaded yet.");});
 
 function hidePageSelect(){$("#pageSelectField").classList.add("hidden");$("#pageSelect").innerHTML="";}
 function renderPageSelect(pages){
@@ -1195,9 +1296,9 @@ async function loadFile(file){
   try{
     setStatus("Parsing "+file.name+"…");
     const {rawText,raw,regionSEO,docKind,pdf,lines}=await handleFile(file);
-    if(!rawText||!rawText.trim()||!raw.length){state.approvedText="";state.approvedBlocks=[];state.pages=[];$("#dropEmpty").classList.remove("hidden");$("#dropFilled").classList.add("hidden");
+    if(!rawText||!rawText.trim()||!raw.length){state.approvedText="";state.approvedBlocks=[];state.pages=[];state.docFile=null;$("#dropEmpty").classList.remove("hidden");$("#dropFilled").classList.add("hidden");
       hidePageSelect();setStatus("No usable copy found in this file. If it's a scanned/image PDF, the copy can't be read automatically.","err");toast("No readable copy in file");return;}
-    state.approvedText=rawText;state.isDocx=file.name.toLowerCase().endsWith(".docx");
+    state.approvedText=rawText;state.isDocx=file.name.toLowerCase().endsWith(".docx");state.docFile=file;
     state.docKind=docKind;state.pdfDoc=pdf||null;state.pdfLines=lines||[];state.docText=rawText;
     $("#fileName").textContent=file.name;$("#fileMeta").textContent=`${file.name.split(".").pop().toUpperCase()} · ${(file.size/1024).toFixed(0)} KB`;
     $("#dropEmpty").classList.add("hidden");$("#dropFilled").classList.remove("hidden");
@@ -1205,7 +1306,7 @@ async function loadFile(file){
     state.pages=await segmentPagesWithClaude(raw,regionSEO);
     renderPageSelect(state.pages);
     selectPage(0,{initial:true});
-  }catch(err){state.approvedText="";state.approvedBlocks=[];state.pages=[];hidePageSelect();setStatus((err.message||"Could not read file")+". Use .pdf or .docx (not old .doc).","err");toast("Failed to read file");}
+  }catch(err){state.approvedText="";state.approvedBlocks=[];state.pages=[];state.docFile=null;hidePageSelect();setStatus((err.message||"Could not read file")+". Use .pdf or .docx (not old .doc).","err");toast("Failed to read file");}
 }
 
 $("#howBtn").addEventListener("click",()=>$("#howModal").classList.remove("hidden"));
@@ -1246,7 +1347,7 @@ async function run(){
     renderAll();
     await saveProjectRun();
     const obs=state.allIssues.filter(i=>i.type==="Observation").length;
-    $("#runNote").textContent=`Done · ${cms} · ${page.ctas.length} CTAs · ${page.links.length} links${obs?` · ${obs} observation${obs===1?"":"s"}`:""}`;
+    $("#runNote").textContent=`Done · ${cms} · ${page.ctas.length} CTAs · ${page.links.length} links${obs?` · ${obs} observation${obs===1?"":"s"}`:""}${state.docFile?` · saved as "${state.docFile.name}"`:""}`;
     toast(`QA complete — ${countType("all")} issues`);
   }catch(err){
     if(err.message==="Cancelled by user."){$("#runNote").textContent="Cancelled.";toast("QA check cancelled");}
@@ -1256,10 +1357,15 @@ async function run(){
 async function saveProjectRun(){
   if(!state.projectId)return;
   try{
+    let document=null;
+    if(state.docFile){
+      document={filename:state.docFile.name,content_type:mimeFor(state.docFile.name),data_base64:await fileToBase64(state.docFile)};
+    }
     await apiPut(`/projects/${state.projectId}/run`,{
       site_name:state.meta.client,page_name:state.meta.page,page_url:state.meta.url,
-      score:state.score,issues:state.issues,
+      score:state.score,issues:state.issues,document,
     });
+    loadRuns();  // refresh the Historial button's count + list in the background
   }catch(e){toast("Could not save project results: "+(e.message||e));}
 }
 
@@ -1326,7 +1432,8 @@ $("#backToProjects").addEventListener("click",()=>{location.hash="#/";});
 function resetToolState(){
   state.approvedText="";state.approvedBlocks=[];state.pages=[];state.issues=[];state.allIssues=[];state.done=new Set();
   state.docKind=null;state.pdfDoc=null;state.pdfLines=[];state.docText="";state.isDocx=false;state.score=undefined;
-  state.approvedCount=undefined;state.pageCount=undefined;state.meta={};
+  state.approvedCount=undefined;state.pageCount=undefined;state.meta={};state.docFile=null;state.runs=[];state.runDetails={};
+  $("#historyTrigger").classList.add("hidden");$("#historyCount").textContent="0";$("#historyModal").classList.add("hidden");
   $("#clientName").value="";$("#pageName").value="";$("#pageUrl").value="";
   fileInput.value="";$("#dropFilled").classList.add("hidden");$("#dropEmpty").classList.remove("hidden");
   hidePageSelect();setStatus("No approved copy loaded yet.");$("#runNote").textContent="";
@@ -1336,6 +1443,7 @@ async function loadProject(id){
   resetToolState();
   state.projectId=id;
   $("#projectTitleHeading").textContent="Loading…";
+  $("#historyTrigger").classList.remove("hidden");
   try{
     const p=await apiGet(`/projects/${id}`);
     $("#projectTitleHeading").textContent=p.name;
@@ -1353,7 +1461,135 @@ async function loadProject(id){
     $("#projectTitleHeading").textContent="Project";
     toast("Could not load project: "+(e.message||e));
   }
+  loadRuns();
 }
+
+/* ---------------- revision history (per-run version trail) ----------------
+   Every run is stored as its own immutable row (project_runs in serve.py),
+   including the exact approved-copy file uploaded — so a reviewer can later
+   answer "which version of the copy did we compare on July 5th?" and
+   re-download that exact file instead of guessing from a filename alone. */
+async function loadRuns(){
+  if(!state.projectId)return;
+  try{
+    const data=await apiGet(`/projects/${state.projectId}/runs`);
+    state.runs=data.runs||[];
+    $("#historyCount").textContent=state.runs.length;
+  }catch(e){state.runs=[];$("#historyCount").textContent="0";}
+}
+function runScoreClass(score){
+  if(score==null)return "na";
+  if(score>=90)return "good";
+  if(score>=70)return "mid";
+  return "bad";
+}
+function buildSparkline(container,runsChrono){
+  const W=640,H=120,PAD=6;
+  const xs=(i)=>runsChrono.length>1?PAD+i*(W-PAD*2)/(runsChrono.length-1):W/2;
+  const ys=(v)=>H-PAD-((v||0)/100)*(H-PAD*2-14)-2;
+  const pts=runsChrono.map((r,i)=>[xs(i),ys(r.score)]);
+  const grid=container.querySelector("#sparkGrid");
+  [0,50,100].forEach(v=>{const y=ys(v);grid.insertAdjacentHTML("beforeend",`<line x1="${PAD}" y1="${y}" x2="${W-PAD}" y2="${y}"/>`);});
+  if(pts.length>1){
+    const linePath="M"+pts.map(p=>p.join(",")).join(" L ");
+    container.querySelector("#sparkLine").setAttribute("d",linePath);
+    container.querySelector("#sparkArea").setAttribute("d",linePath+` L ${pts[pts.length-1][0]},${H-PAD} L ${pts[0][0]},${H-PAD} Z`);
+  }
+  const dotsG=container.querySelector("#sparkDots");
+  pts.forEach((p,i)=>{
+    const isLast=i===pts.length-1,r=isLast?5:3;
+    const fill=isLast?({good:"#2fd6a6",mid:"#f5a524",bad:"#ff476f",na:"#6a6973"})[runScoreClass(runsChrono[i].score)]:"#ff1449";
+    dotsG.insertAdjacentHTML("beforeend",`<circle class="spark-dot" cx="${p[0]}" cy="${p[1]}" r="${r}" fill="${fill}"></circle>`);
+    if(isLast)dotsG.insertAdjacentHTML("beforeend",`<text class="spark-endlabel" x="${p[0]-2}" y="${p[1]-12}" text-anchor="end">${runsChrono[i].score??"—"}%</text>`);
+    const hitW=W/runsChrono.length;
+    dotsG.insertAdjacentHTML("beforeend",`<rect class="spark-hit" data-i="${i}" x="${p[0]-hitW/2}" y="0" width="${hitW}" height="${H}"></rect>`);
+  });
+  const axis=container.querySelector("#sparkAxis");
+  const axisIdx=[0,Math.floor((runsChrono.length-1)/2),runsChrono.length-1].filter((v,i,a)=>a.indexOf(v)===i);
+  axisIdx.forEach(i=>{
+    const x=pts[i][0]/W*100+"%";
+    axis.insertAdjacentHTML("beforeend",`<text x="${x}" y="11" text-anchor="${i===0?'start':i===runsChrono.length-1?'end':'middle'}">${fmtDate(runsChrono[i].ran_at)}</text>`);
+  });
+  const svg=container.querySelector(".spark-svg"),cross=container.querySelector("#crosshair"),tip=container.querySelector(".spark-tooltip");
+  svg.querySelectorAll(".spark-hit").forEach(hit=>{
+    hit.addEventListener("mouseenter",()=>{
+      const i=+hit.dataset.i,p=pts[i],r=runsChrono[i];
+      cross.setAttribute("x1",p[0]);cross.setAttribute("x2",p[0]);cross.style.opacity=1;
+      tip.style.opacity=1;tip.style.left=(p[0]/W*100)+"%";tip.style.top=(p[1]/H*100)+"%";
+      tip.innerHTML=`<strong>${r.score??"—"}%</strong> · ${r.issues_total} issue${r.issues_total===1?"":"s"}<br>${new Date(r.ran_at).toLocaleString()}`;
+    });
+    hit.addEventListener("mouseleave",()=>{cross.style.opacity=0;tip.style.opacity=0;});
+  });
+}
+function fmtDate(iso){return iso?new Date(iso).toLocaleDateString(undefined,{day:"2-digit",month:"short",year:"numeric"}):"—";}
+async function renderHistoryBody(){
+  const body=$("#historyBody");
+  $("#historySub").textContent=`${state.meta&&state.meta.client||"—"} — ${state.runs.length} corrida${state.runs.length===1?"":"s"} registrada${state.runs.length===1?"":"s"}`;
+  if(!state.runs.length){body.innerHTML=`<div class="hist-empty">Todavía no hay corridas guardadas para este proyecto — corré "Run QA Check" para empezar el historial.</div>`;return;}
+  const chrono=[...state.runs].reverse();  // oldest -> newest, for the chart
+  body.innerHTML=`
+    <div class="spark-wrap">
+      <div class="spark-top"><span class="lbl">Match score en el tiempo</span>
+        <span class="now">${state.runs[0].score??"—"}<span class="unit">% · última corrida</span></span></div>
+      <div style="position:relative;">
+        <svg class="spark-svg" viewBox="0 0 640 120" preserveAspectRatio="none">
+          <defs><linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#ff1449" stop-opacity="0.28"/><stop offset="100%" stop-color="#ff1449" stop-opacity="0"/>
+          </linearGradient></defs>
+          <g id="sparkGrid" class="spark-grid"></g>
+          <path class="spark-area" id="sparkArea"></path>
+          <path class="spark-line" id="sparkLine"></path>
+          <line class="crosshair" id="crosshair" x1="0" y1="2" x2="0" y2="120"></line>
+          <g id="sparkDots"></g>
+        </svg>
+        <div class="spark-tooltip"></div>
+      </div>
+      <svg class="spark-axis" width="100%" height="16" style="display:block;"><g id="sparkAxis"></g></svg>
+    </div>
+    <div class="run-list" id="runList"></div>`;
+  buildSparkline(body,chrono);
+  const list=$("#runList");
+  list.innerHTML=state.runs.map((r,i)=>{
+    const prev=state.runs[i+1];  // state.runs is most-recent-first, so i+1 is the previous (older) run
+    const delta=prev&&r.score!=null&&prev.score!=null?r.score-prev.score:null;
+    const deltaCls=delta==null?"flat":delta>0?"up":delta<0?"down":"flat";
+    const deltaTxt=delta==null?"Primera revisión":(delta>0?"▲ +"+delta:delta<0?"▼ "+delta:"Sin cambio")+" vs. anterior";
+    return `<div class="run-row${i===0?' current':''}" data-run="${r.id}">
+      <div class="run-summary" data-toggle="${r.id}">
+        <div class="run-when"><div class="d">${fmtDate(r.ran_at)}</div><div class="t">${new Date(r.ran_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div></div>
+        <div class="run-score ${runScoreClass(r.score)}">${r.score??"—"}%</div>
+        <div class="run-issues">${r.issues_total} issue${r.issues_total===1?"":"s"}</div>
+        <div class="run-doc">${r.doc_filename?esc(r.doc_filename):'<span class="muted">Sin documento</span>'}</div>
+        <div class="run-delta ${deltaCls}">${deltaTxt}</div>
+        ${i===0?'<span class="run-current-tag">Actual</span>':''}
+        <div class="run-toggle"><svg class="ico" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>Ver detalle</div>
+      </div>
+      <div class="run-detail"></div>
+    </div>`;
+  }).join("");
+  list.querySelectorAll("[data-toggle]").forEach(el=>el.addEventListener("click",()=>toggleRunDetail(el.closest(".run-row"),+el.dataset.toggle)));
+}
+async function toggleRunDetail(row,runId){
+  const open=row.classList.toggle("open");
+  if(!open)return;
+  const detail=row.querySelector(".run-detail");
+  if(row.dataset.loaded){return;}
+  detail.innerHTML=`<div class="hist-loading">Loading…</div>`;
+  try{
+    const run=state.runDetails[runId]||(state.runDetails[runId]=await apiGet(`/projects/${state.projectId}/runs/${runId}`));
+    row.dataset.loaded="1";
+    const issues=(run.issues||[]).filter(i=>i.type!=="Observation");
+    const rows=issues.length?issues.map(i=>`<tr><td>${esc(i.section)}</td><td><span class="type-pill">${esc(i.type)}</span></td><td>${i.approved==="—"?"—":esc(i.approved)}</td><td class="cur">${i.current==="—"?"—":esc(i.current)}</td></tr>`).join(""):`<tr><td colspan="4" class="no-rows">No issues in this run.</td></tr>`;
+    const downloadHtml=run.doc_filename
+      ?`<a class="run-download" href="${API_BASE}/projects/${state.projectId}/runs/${runId}/document" target="_blank" rel="noopener"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Descargar ${esc(run.doc_filename)}</a>`
+      :'<span class="muted">Sin documento guardado para esta corrida</span>';
+    detail.innerHTML=`<div class="readonly-tag"><span><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Foto de esa corrida — solo lectura</span>${downloadHtml}</div>
+      <table class="detail-table"><thead><tr><th>Section</th><th>Type</th><th>Approved</th><th>Current</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }catch(e){detail.innerHTML=`<div class="hist-empty">Could not load this run: ${esc(e.message||String(e))}</div>`;}
+}
+$("#historyTrigger").addEventListener("click",()=>{$("#historyModal").classList.remove("hidden");renderHistoryBody();});
+$("#closeHistory").addEventListener("click",()=>$("#historyModal").classList.add("hidden"));
+$("#historyModal").addEventListener("click",e=>{if(e.target.id==="historyModal")$("#historyModal").classList.add("hidden");});
 function showDashboard(){$("#dashboardView").classList.remove("hidden");$("#projectView").classList.add("hidden");loadProjects();}
 function showProjectView(id){$("#dashboardView").classList.add("hidden");$("#projectView").classList.remove("hidden");loadProject(id);}
 function routeFromHash(){
