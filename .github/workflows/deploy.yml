@@ -1,0 +1,32 @@
+name: Deploy to VPS
+
+# On every push to main, SSH into the VPS and trigger the deploy. The SSH key is
+# restricted on the VPS (authorized_keys command="...") so it can ONLY run the
+# deploy script (git pull --ff-only + systemctl restart copymatch) — not a shell
+# or arbitrary commands. Requires one repo secret: VPS_SSH_KEY (the private key).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        run: |
+          if [ -z "${{ secrets.VPS_SSH_KEY }}" ]; then
+            echo "::error::VPS_SSH_KEY secret is not set — add it in repo Settings -> Secrets."
+            exit 1
+          fi
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -t ed25519 191.101.235.160 >> ~/.ssh/known_hosts 2>/dev/null
+          # The forced command on the VPS runs the deploy; the argument is ignored.
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -i ~/.ssh/id_ed25519 \
+              root@191.101.235.160 deploy
