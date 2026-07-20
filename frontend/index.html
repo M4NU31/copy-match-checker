@@ -130,6 +130,9 @@ select{appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='h
 .btn-outline{background:transparent; border-color:var(--border-2); color:var(--text);}
 .btn-outline:hover{border-color:var(--pink); color:var(--pink-2);}
 .btn-ghost{background:var(--card); border-color:var(--border); color:var(--text-2);}
+.drive-row{display:flex; align-items:center; gap:12px; margin-top:12px;}
+.drive-or{color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.06em;}
+.btn-drive{display:inline-flex; align-items:center; gap:8px; padding:9px 14px; font-size:13px; font-weight:500;}
 .btn-ghost:hover{color:var(--text); border-color:var(--border-2);}
 .run-note{margin-top:9px; text-align:center; min-height:16px;}
 
@@ -389,6 +392,14 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
         </div>
       </div>
 
+      <div class="drive-row" id="driveRow" hidden>
+        <span class="drive-or">or</span>
+        <button type="button" class="btn btn-outline btn-drive" id="driveBtn">
+          <svg class="ico ico-sm" viewBox="0 0 24 24"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+          Search in Google Drive
+        </button>
+      </div>
+
       <div class="status" id="approvedStatus">No approved copy loaded yet.</div>
     </div>
 
@@ -463,7 +474,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10n · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10o · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -828,6 +839,66 @@ async function handleFile(file){
   }
   throw new Error("Unsupported file type. Use PDF or DOCX.");
 }
+
+/* ---------------- Google Drive picker (approved copy from Drive) ----------------
+   Lets the user pick the approved-copy doc straight from Google Drive (My Drive +
+   Shared with me + search) instead of uploading. Google Identity Services with the
+   drive.file scope (only the files the user actually picks) + the Google Picker,
+   then the downloaded bytes go through the SAME loadFile() pipeline as an upload.
+   Native Google Docs are exported to DOCX (keeps the green/pink color-coding a PDF
+   would lose). Google OAuth requires an HTTPS origin registered in the Cloud
+   console, so the button only appears over https (gate at the bottom). Client ID +
+   API key are public client-side identifiers (the key is restricted). See CLAUDE.md. */
+const GOOGLE_CLIENT_ID="816397776737-f7k7k00kf0vneomna5n18qp5lqml57fd.apps.googleusercontent.com";
+const GOOGLE_API_KEY="AIzaSyDdnxoj9fui2Yz1eYQFtoL_J2nSX9fUYTU";
+const GOOGLE_APP_ID="816397776737"; // Cloud project number (the client-id prefix)
+const GOOGLE_DRIVE_SCOPE="https://www.googleapis.com/auth/drive.file";
+const DOCX_MIME="application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const GDOC_MIME="application/vnd.google-apps.document";
+let _gPickerReady=false,_gTokenClient=null,_gToken=null;
+
+function loadScriptOnce(src){return new Promise((res,rej)=>{if(document.querySelector(`script[src="${src}"]`))return res();const s=document.createElement("script");s.src=src;s.async=true;s.onload=()=>res();s.onerror=()=>rej(new Error("Failed to load "+src));document.head.appendChild(s);});}
+async function ensureGoogle(){
+  await loadScriptOnce("https://accounts.google.com/gsi/client");
+  await loadScriptOnce("https://apis.google.com/js/api.js");
+  if(!_gPickerReady){await new Promise(res=>gapi.load("picker",{callback:res}));_gPickerReady=true;}
+  if(!_gTokenClient)_gTokenClient=google.accounts.oauth2.initTokenClient({client_id:GOOGLE_CLIENT_ID,scope:GOOGLE_DRIVE_SCOPE,callback:()=>{}});
+}
+function getDriveToken(){return new Promise((res,rej)=>{_gTokenClient.callback=(r)=>{if(r&&r.error)return rej(new Error(r.error));_gToken=r.access_token;res(r.access_token);};_gTokenClient.requestAccessToken({prompt:_gToken?"":"consent"});});}
+function showDrivePicker(token){
+  const mimes=`application/pdf,${DOCX_MIME},${GDOC_MIME}`;
+  const mine=new google.picker.DocsView(google.picker.ViewId.DOCS).setMimeTypes(mimes).setOwnedByMe(true).setLabel("My Drive").setIncludeFolders(true).setSelectFolderEnabled(false);
+  const shared=new google.picker.DocsView(google.picker.ViewId.DOCS).setMimeTypes(mimes).setOwnedByMe(false).setLabel("Shared with me");
+  new google.picker.PickerBuilder().setAppId(GOOGLE_APP_ID).setOAuthToken(token).setDeveloperKey(GOOGLE_API_KEY)
+    .setTitle("Select the approved copy").addView(mine).addView(shared).setCallback(onDrivePicked).build().setVisible(true);
+}
+async function onDrivePicked(data){
+  if(!data||data.action!==google.picker.Action.PICKED)return;
+  const doc=data.docs[0];if(!doc)return;
+  try{
+    setStatus("Fetching from Google Drive…");
+    let url,filename;
+    if(doc.mimeType===GDOC_MIME){
+      url=`https://www.googleapis.com/drive/v3/files/${doc.id}/export?mimeType=${encodeURIComponent(DOCX_MIME)}`;
+      filename=(doc.name||"document").replace(/\.[^.]+$/,"")+".docx";
+    }else{
+      url=`https://www.googleapis.com/drive/v3/files/${doc.id}?alt=media`;
+      filename=doc.name||(doc.mimeType==="application/pdf"?"document.pdf":"document.docx");
+      if(!/\.(pdf|docx)$/i.test(filename))filename+=doc.mimeType==="application/pdf"?".pdf":".docx";
+    }
+    const res=await fetch(url,{headers:{Authorization:"Bearer "+_gToken}});
+    if(!res.ok)throw new Error("Drive download failed (HTTP "+res.status+")");
+    loadFile(new File([await res.arrayBuffer()],filename));
+  }catch(e){setStatus("","");alert("Could not import from Google Drive: "+(e.message||e));}
+}
+async function openDrive(){
+  const btn=$("#driveBtn");
+  try{btn.disabled=true;await ensureGoogle();showDrivePicker(await getDriveToken());}
+  catch(e){alert("Google Drive: "+(e.message||e));}
+  finally{btn.disabled=false;}
+}
+// OAuth needs an HTTPS origin registered in Google Cloud — only offer it there.
+if(location.protocol==="https:"){const r=$("#driveRow");if(r){r.hidden=false;$("#driveBtn").addEventListener("click",openDrive);}}
 
 /* ---------------- page segmentation (multi-page documents) ----------------
    Approved-copy decks often bundle the copy for an entire site into one file,
