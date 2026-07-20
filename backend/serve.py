@@ -537,6 +537,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self.handle_ai_segment()
         if self.path == "/projects":
             return self.handle_project_create()
+        m = re.match(r"^/projects/(\d+)/reset$", self.path)
+        if m:
+            return self.handle_project_reset(int(m.group(1)))
         return self._send(404, "text/plain", b"Not found")
 
     def do_PUT(self):
@@ -661,6 +664,25 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 return self._send(400, "application/json", json.dumps({"error": "name is required"}).encode("utf-8"))
             row = db_query(
                 f"INSERT INTO projects (name) VALUES (%s) RETURNING {PROJECT_COLUMNS}", (name,), fetch="one")
+            self._send(200, "application/json", json.dumps(_project_full(row)).encode("utf-8"))
+        except Exception as e:  # noqa: BLE001
+            self._send(502, "application/json", json.dumps({"error": str(e)}).encode("utf-8"))
+
+    def handle_project_reset(self, pid):
+        if not self._secret_ok():
+            return
+        if not DB_AVAILABLE:
+            return self._db_unavailable()
+        try:
+            # Clears the project's CURRENT issues/score (the mutable state the grid
+            # and project page read) but leaves project_runs untouched, so the
+            # revision history is preserved. Does not insert a run row.
+            row = db_query(
+                f"""UPDATE projects SET issues='[]'::jsonb, score=NULL, updated_at=now()
+                    WHERE id=%s RETURNING {PROJECT_COLUMNS}""",
+                (pid,), fetch="one")
+            if not row:
+                return self._send(404, "application/json", json.dumps({"error": "Project not found"}).encode("utf-8"))
             self._send(200, "application/json", json.dumps(_project_full(row)).encode("utf-8"))
         except Exception as e:  # noqa: BLE001
             self._send(502, "application/json", json.dumps({"error": str(e)}).encode("utf-8"))
