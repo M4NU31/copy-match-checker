@@ -350,11 +350,11 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
     <div class="dash-toolbar">
       <label class="dash-search">
         <svg class="ico ico-sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input type="text" id="projSearch" placeholder="Buscar proyecto…" />
+        <input type="text" id="projSearch" placeholder="Search projects…" />
       </label>
       <button class="btn btn-primary" id="addProjectBtn">
         <svg class="ico ico-sm" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        Add Proyecto
+        Add Project
       </button>
     </div>
     <div id="projGrid" class="proj-grid"></div>
@@ -370,7 +370,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
       <h2 id="projectTitleHeading"></h2>
       <button class="history-trigger hidden" id="historyTrigger">
         <svg class="ico ico-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        Historial <span class="count" id="historyCount">0</span>
+        History <span class="count" id="historyCount">0</span>
       </button>
       <button class="btn btn-ghost hidden" id="resetBtn" title="Clear current issues (keeps history)">
         <svg class="ico ico-sm" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
@@ -503,7 +503,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10s · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10t · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -542,7 +542,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
   <div class="modal-box hist-box">
     <div class="hist-head">
       <div>
-        <h3><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Historial de revisiones</h3>
+        <h3><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Revision history</h3>
         <p id="historySub"></p>
       </div>
       <button class="x" id="closeHistory"><svg class="ico" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
@@ -604,14 +604,14 @@ const apiPut=(path,body)=>apiCall("PUT",path,body);
 const apiPatch=(path,body)=>apiCall("PATCH",path,body);
 
 /* The exact file the reviewer uploaded is sent to the backend on every run and
-   stored per-run (see project_runs in serve.py), so a later "Historial" view
+   stored per-run (see project_runs in serve.py), so a later "History" view
    can answer "which version of the copy did we compare on July 5th?" without
    guessing from a filename alone. FileReader's own base64 encoding is used
    (not a hand-rolled ArrayBuffer->base64 loop) since it's async and doesn't
    block the UI thread on a multi-MB file. */
 /* There's no login system in this tool (open access, no auth yet — see
    CLAUDE.md), so "who ran this" is a name the browser remembers locally
-   (localStorage), sent along with every run and shown in the Historial.
+   (localStorage), sent along with every run and shown in the History.
    TEMPORARY: real user accounts are planned for launch — once that ships,
    ran_by should come from the logged-in session instead, and this button
    (plus USER_NAME_KEY/getUserName) can be deleted. */
@@ -1563,7 +1563,7 @@ async function run(){
     // A save failure is appended to the persistent run-note text, not just a
     // toast — the "QA complete" toast right below would otherwise instantly
     // replace a "could not save" toast before anyone could read it.
-    const saveWarning=saveResult.ok?"":` · ⚠ could not save to Historial (${saveResult.error})`;
+    const saveWarning=saveResult.ok?"":` · ⚠ could not save to History (${saveResult.error})`;
     $("#runNote").textContent=`Done · ${cms} · ${page.ctas.length} CTAs · ${page.links.length} links${obs?` · ${obs} observation${obs===1?"":"s"}`:""}${state.docFile?` · saved as "${state.docFile.name}"`:""}${saveWarning}`;
     toast(`QA complete — ${countType("all")} issues`);
   }catch(err){
@@ -1582,7 +1582,7 @@ async function saveProjectRun(){
       site_name:state.meta.client,page_name:state.meta.page,page_url:state.meta.url,
       score:state.score,issues:state.issues,document,ran_by:getUserName(),
     });
-    loadRuns();  // refresh the Historial button's count + list in the background
+    loadRuns();  // refresh the History button's count + list in the background
     return {ok:true};
   }catch(e){return {ok:false,error:e.message||String(e)};}
 }
@@ -1744,13 +1744,13 @@ function buildSparkline(container,runsChrono){
 function fmtDate(iso){return iso?new Date(iso).toLocaleDateString(undefined,{day:"2-digit",month:"short",year:"numeric"}):"—";}
 async function renderHistoryBody(){
   const body=$("#historyBody");
-  $("#historySub").textContent=`${state.meta&&state.meta.client||"—"} — ${state.runs.length} corrida${state.runs.length===1?"":"s"} registrada${state.runs.length===1?"":"s"}`;
-  if(!state.runs.length){body.innerHTML=`<div class="hist-empty">Todavía no hay corridas guardadas para este proyecto — corré "Run QA Check" para empezar el historial.</div>`;return;}
+  $("#historySub").textContent=`${state.meta&&state.meta.client||"—"} — ${state.runs.length} run${state.runs.length===1?"":"s"} recorded`;
+  if(!state.runs.length){body.innerHTML=`<div class="hist-empty">No runs saved for this project yet — click "Run QA Check" to start the history.</div>`;return;}
   const chrono=[...state.runs].reverse();  // oldest -> newest, for the chart
   body.innerHTML=`
     <div class="spark-wrap">
       <div class="spark-top"><span class="lbl">Match score en el tiempo</span>
-        <span class="now">${state.runs[0].score??"—"}<span class="unit">% · última corrida</span></span></div>
+        <span class="now">${state.runs[0].score??"—"}<span class="unit">% · last run</span></span></div>
       <div style="position:relative;">
         <svg class="spark-svg" viewBox="0 0 640 120" preserveAspectRatio="none">
           <defs><linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
@@ -1773,13 +1773,13 @@ async function renderHistoryBody(){
     const prev=state.runs[i+1];  // state.runs is most-recent-first, so i+1 is the previous (older) run
     const delta=prev&&r.score!=null&&prev.score!=null?r.score-prev.score:null;
     const deltaCls=delta==null?"flat":delta>0?"up":delta<0?"down":"flat";
-    const deltaTxt=delta==null?"Primera revisión":(delta>0?"▲ +"+delta:delta<0?"▼ "+delta:"Sin cambio")+" vs. anterior";
+    const deltaTxt=delta==null?"First revision":(delta>0?"▲ +"+delta:delta<0?"▼ "+delta:"No change")+" vs. previous";
     return `<div class="run-row${i===0?' current':''}" data-run="${r.id}">
       <div class="run-summary" data-toggle="${r.id}">
         <div class="run-when"><div class="d">${fmtDate(r.ran_at)}</div><div class="t">${new Date(r.ran_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div></div>
         <div class="run-score ${runScoreClass(r.score)}">${r.score??"—"}%</div>
         <div class="run-issues">${r.issues_total} issue${r.issues_total===1?"":"s"}</div>
-        <div class="run-doc">${r.doc_filename?esc(r.doc_filename):'<span class="muted">Sin documento</span>'}</div>
+        <div class="run-doc">${r.doc_filename?esc(r.doc_filename):'<span class="muted">No document</span>'}</div>
         <div class="run-by" title="${r.ran_by?esc(r.ran_by):'—'}">${r.ran_by?esc(r.ran_by):'<span class="muted">—</span>'}</div>
         <div class="run-delta ${deltaCls}">${deltaTxt}</div>
         ${i===0?'<span class="run-current-tag">Actual</span>':''}
@@ -1802,9 +1802,9 @@ async function toggleRunDetail(row,runId){
     const issues=(run.issues||[]).filter(i=>i.type!=="Observation");
     const rows=issues.length?issues.map(i=>`<tr><td>${esc(i.section)}</td><td><span class="type-pill">${esc(i.type)}</span></td><td>${i.approved==="—"?"—":esc(i.approved)}</td><td class="cur">${i.current==="—"?"—":esc(i.current)}</td></tr>`).join(""):`<tr><td colspan="4" class="no-rows">No issues in this run.</td></tr>`;
     const downloadHtml=run.doc_filename
-      ?`<a class="run-download" href="${API_BASE}/projects/${state.projectId}/runs/${runId}/document" target="_blank" rel="noopener"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Descargar ${esc(run.doc_filename)}</a>`
-      :'<span class="muted">Sin documento guardado para esta corrida</span>';
-    detail.innerHTML=`<div class="readonly-tag"><span><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Foto de esa corrida — solo lectura${run.ran_by?` · Por ${esc(run.ran_by)}`:""}</span>${downloadHtml}</div>
+      ?`<a class="run-download" href="${API_BASE}/projects/${state.projectId}/runs/${runId}/document" target="_blank" rel="noopener"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download ${esc(run.doc_filename)}</a>`
+      :'<span class="muted">No document saved for this run</span>';
+    detail.innerHTML=`<div class="readonly-tag"><span><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Snapshot of that run — read-only${run.ran_by?` · By ${esc(run.ran_by)}`:""}</span>${downloadHtml}</div>
       <table class="detail-table"><thead><tr><th>Section</th><th>Type</th><th>Approved</th><th>Current</th></tr></thead><tbody>${rows}</tbody></table>`;
   }catch(e){detail.innerHTML=`<div class="hist-empty">Could not load this run: ${esc(e.message||String(e))}</div>`;}
 }
