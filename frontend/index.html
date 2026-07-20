@@ -135,6 +135,9 @@ select{appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='h
 .btn-drive{display:inline-flex; align-items:center; gap:8px; padding:9px 14px; font-size:13px; font-weight:500;}
 .modal-actions{display:flex; gap:10px; justify-content:flex-end; margin-top:18px;}
 .modal-actions .btn{min-width:110px; justify-content:center;}
+.saved-doc{display:flex; align-items:center; gap:10px; margin-top:12px; padding:10px 12px; border:1px solid var(--border); border-radius:8px; background:var(--card-2); font-size:13px;}
+.saved-doc>span{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text);}
+.saved-doc .btn-sm{padding:6px 12px; font-size:12px; text-decoration:none;}
 .btn-ghost:hover{color:var(--text); border-color:var(--border-2);}
 .run-note{margin-top:9px; text-align:center; min-height:16px;}
 
@@ -407,6 +410,13 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
       </div>
 
       <div class="status" id="approvedStatus">No approved copy loaded yet.</div>
+
+      <div class="saved-doc hidden" id="projectDocRow">
+        <svg class="ico ico-sm" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <span id="projectDocName">approved-copy</span>
+        <a class="btn btn-ghost btn-sm" id="projectDocDownload" download>Download</a>
+        <a class="btn btn-ghost btn-sm hidden" id="projectDocOpen" target="_blank" rel="noopener">Open in Drive</a>
+      </div>
     </div>
 
     <!-- Page to compare -->
@@ -480,7 +490,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10q · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10r · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -906,7 +916,7 @@ async function onDrivePicked(data){
     }
     const res=await fetch(url,{headers:{Authorization:"Bearer "+_gToken}});
     if(!res.ok)throw new Error("Drive download failed (HTTP "+res.status+")");
-    loadFile(new File([await res.arrayBuffer()],filename));
+    loadFile(new File([await res.arrayBuffer()],filename),doc.url||null);
   }catch(e){setStatus("","");alert("Could not import from Google Drive: "+(e.message||e));}
 }
 async function openDrive(){
@@ -1367,7 +1377,7 @@ dz.addEventListener("dragover",e=>{e.preventDefault();dz.classList.add("drag");}
 dz.addEventListener("dragleave",()=>dz.classList.remove("drag"));
 dz.addEventListener("drop",e=>{e.preventDefault();dz.classList.remove("drag");if(e.dataTransfer.files[0])loadFile(e.dataTransfer.files[0]);});
 fileInput.addEventListener("change",e=>e.target.files[0]&&loadFile(e.target.files[0]));
-$("#clearFile").addEventListener("click",e=>{e.stopPropagation();state.approvedText="";state.approvedBlocks=[];state.pages=[];state.pdfDoc=null;state.pdfLines=[];state.docText="";state.docKind=null;state.docFile=null;fileInput.value="";$("#dropFilled").classList.add("hidden");$("#dropEmpty").classList.remove("hidden");hidePageSelect();setStatus("No approved copy loaded yet.");});
+$("#clearFile").addEventListener("click",e=>{e.stopPropagation();state.approvedText="";state.approvedBlocks=[];state.pages=[];state.pdfDoc=null;state.pdfLines=[];state.docText="";state.docKind=null;state.docFile=null;state.docUrl=null;fileInput.value="";$("#dropFilled").classList.add("hidden");$("#dropEmpty").classList.remove("hidden");hidePageSelect();setStatus("No approved copy loaded yet.");});
 
 function hidePageSelect(){$("#pageSelectField").classList.add("hidden");$("#pageSelect").innerHTML="";}
 function renderPageSelect(pages){
@@ -1400,7 +1410,8 @@ $("#pageUrl").addEventListener("blur",()=>{
   if(guess)$("#clientName").value=guess;
 });
 
-async function loadFile(file){
+async function loadFile(file,docUrl){
+  state.docUrl=docUrl||null;  // Google Drive view link when picked from Drive, else null
   try{
     setStatus("Parsing "+file.name+"…");
     const {rawText,raw,regionSEO,docKind,pdf,lines}=await handleFile(file);
@@ -1491,7 +1502,7 @@ async function saveProjectRun(){
   try{
     let document=null;
     if(state.docFile){
-      document={filename:state.docFile.name,content_type:mimeFor(state.docFile.name),data_base64:await fileToBase64(state.docFile)};
+      document={filename:state.docFile.name,content_type:mimeFor(state.docFile.name),data_base64:await fileToBase64(state.docFile),url:state.docUrl||null};
     }
     await apiPut(`/projects/${state.projectId}/run`,{
       site_name:state.meta.client,page_name:state.meta.page,page_url:state.meta.url,
@@ -1557,8 +1568,8 @@ $("#backToProjects").addEventListener("click",()=>{location.hash="#/";});
 function resetToolState(){
   state.approvedText="";state.approvedBlocks=[];state.pages=[];state.issues=[];state.allIssues=[];state.done=new Set();
   state.docKind=null;state.pdfDoc=null;state.pdfLines=[];state.docText="";state.isDocx=false;state.score=undefined;
-  state.approvedCount=undefined;state.pageCount=undefined;state.meta={};state.docFile=null;state.runs=[];state.runDetails={};
-  $("#historyTrigger").classList.add("hidden");$("#resetBtn").classList.add("hidden");$("#historyCount").textContent="0";$("#historyModal").classList.add("hidden");
+  state.approvedCount=undefined;state.pageCount=undefined;state.meta={};state.docFile=null;state.docUrl=null;state.runs=[];state.runDetails={};
+  $("#historyTrigger").classList.add("hidden");$("#resetBtn").classList.add("hidden");$("#projectDocRow").classList.add("hidden");$("#historyCount").textContent="0";$("#historyModal").classList.add("hidden");
   $("#clientName").value="";$("#pageName").value="";$("#pageUrl").value="";
   fileInput.value="";$("#dropFilled").classList.add("hidden");$("#dropEmpty").classList.remove("hidden");
   hidePageSelect();setStatus("No approved copy loaded yet.");$("#runNote").textContent="";
@@ -1582,6 +1593,16 @@ async function loadProject(id){
       renderAll();
       $("#runNote").textContent=`Showing the last run · ${new Date(p.last_run_at).toLocaleString()}`;
     }
+    // Current approved document: any teammate can download it (and open the
+    // original in Drive when it came from Drive) without re-uploading.
+    const docRow=$("#projectDocRow");
+    if(p.has_document){
+      $("#projectDocName").textContent=p.doc_filename||"approved-copy";
+      const dl=$("#projectDocDownload");dl.href=`${API_BASE}/projects/${id}/document`;dl.setAttribute("download",p.doc_filename||"approved-copy");
+      const op=$("#projectDocOpen");
+      if(p.doc_url){op.href=p.doc_url;op.classList.remove("hidden");}else{op.classList.add("hidden");}
+      docRow.classList.remove("hidden");
+    }else docRow.classList.add("hidden");
   }catch(e){
     $("#projectTitleHeading").textContent="Project";
     toast("Could not load project: "+(e.message||e));

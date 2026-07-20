@@ -419,6 +419,12 @@ def init_db():
                     last_run_at TIMESTAMPTZ
                 );
             """)
+            # Current approved doc for the project (the last one scanned) so any
+            # teammate can download/open it from the project page. doc_url is the
+            # Google Drive view link when the doc came from Drive, else NULL.
+            for _col, _type in (("doc_filename", "TEXT"), ("doc_content_type", "TEXT"),
+                                ("doc_bytes", "BYTEA"), ("doc_url", "TEXT")):
+                cur.execute(f"ALTER TABLE projects ADD COLUMN IF NOT EXISTS {_col} {_type};")
             # One row per "Run QA Check" click — an immutable snapshot (score,
             # issues, and the exact approved-copy file used), so the team can
             # answer "which version of the copy did we compare on July 5th?"
@@ -463,7 +469,7 @@ def db_query(sql, params=(), fetch=None):
         conn.close()
 
 
-PROJECT_COLUMNS = "id,name,site_name,page_name,page_url,score,issues,created_at,updated_at,last_run_at"
+PROJECT_COLUMNS = "id,name,site_name,page_name,page_url,score,issues,created_at,updated_at,last_run_at,doc_filename,doc_url"
 
 
 def _issue_stats(issues, score):
@@ -483,7 +489,8 @@ def _issue_stats(issues, score):
 
 
 def _project_summary(row):
-    (pid, name, site_name, page_name, page_url, score, issues, created_at, updated_at, last_run_at) = row
+    (pid, name, site_name, page_name, page_url, score, issues, created_at, updated_at,
+     last_run_at, doc_filename, doc_url) = row
     total, resolved, live = _issue_stats(issues or [], score)
     return {
         "id": pid, "name": name, "site_name": site_name, "page_name": page_name,
@@ -491,6 +498,7 @@ def _project_summary(row):
         "issues_total": total, "issues_resolved": resolved,
         "last_run_at": last_run_at.isoformat() if last_run_at else None,
         "updated_at": updated_at.isoformat() if updated_at else None,
+        "doc_filename": doc_filename, "doc_url": doc_url, "has_document": bool(doc_filename),
     }
 
 
@@ -519,6 +527,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         m = re.match(r"^/projects/(\d+)$", self.path)
         if m:
             return self.handle_project_get(int(m.group(1)))
+        m = re.match(r"^/projects/(\d+)/document$", self.path)
+        if m:
+            return self.handle_project_document(int(m.group(1)))
         m = re.match(r"^/projects/(\d+)/runs$", self.path)
         if m:
             return self.handle_runs_list(int(m.group(1)))
@@ -706,6 +717,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             doc = payload.get("document") or {}
             doc_filename = doc.get("filename")
             doc_content_type = doc.get("content_type")
+            doc_url = doc.get("url")  # Google Drive view link, or None for uploads
             ran_by = (payload.get("ran_by") or "").strip()
             doc_bytes = None
             if doc.get("data_base64"):
@@ -720,9 +732,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     doc_bytes = None
             row = db_query(
                 f"""UPDATE projects SET site_name=%s, page_name=%s, page_url=%s, score=%s,
-                    issues=%s::jsonb, last_run_at=now(), updated_at=now()
+                    issues=%s::jsonb, doc_filename=%s, doc_content_type=%s, doc_bytes=%s, doc_url=%s,
+                    last_run_at=now(), updated_at=now()
                     WHERE id=%s RETURNING {PROJECT_COLUMNS}""",
-                (site_name, page_name, page_url, score, json.dumps(issues), pid),
+                (site_name, page_name, page_url, score, json.dumps(issues),
+                 doc_filename, doc_content_type, doc_bytes, doc_url, pid),
                 fetch="one")
             if not row:
                 return self._send(404, "application/json", json.dumps({"error": "Project not found"}).encode("utf-8"))
@@ -778,6 +792,30 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 "score": score, "issues": issues or [], "doc_filename": doc_filename,
                 "ran_by": ran_by or None,
             }).encode("utf-8"))
+        except Exception as e:  # noqa: BLE001
+            self._send(502, "application/json", json.dumps({"error": str(e)}).encode("utf-8"))
+
+    def handle_project_document(self, pid):
+        if not self._secret_ok():
+            return
+        if not DB_AVAILABLE:
+            return self._db_unavailable()
+        try:
+            row = db_query(
+                "SELECT doc_filename, doc_content_type, doc_bytes FROM projects WHERE id=%s",
+                (pid,), fetch="one")
+            if not row or not row[2]:
+                return self._send(404, "application/json",
+                                   json.dumps({"error": "No document stored for this project"}).encode("utf-8"))
+            filename, content_type, data = row
+            filename = (filename or "approved-copy").replace('"', "")
+            self.send_response(200)
+            self.send_header("Content-Type", content_type or "application/octet-stream")
+            self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+            self._write_cors_headers()
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
         except Exception as e:  # noqa: BLE001
             self._send(502, "application/json", json.dumps({"error": str(e)}).encode("utf-8"))
 
