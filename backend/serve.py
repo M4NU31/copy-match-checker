@@ -138,6 +138,15 @@ Then look at page_blocks that don't correspond to any approved block and
 flag the ones that look like real reviewable copy (not boilerplate like
 cookie banners, nav, or footer legal text) as Extra Section.
 
+You may also receive approved_comments: reviewer/copywriter comments left on
+the approved document. Each has the copy it is anchored to ("quoted"), the
+comment itself ("text"), and an author. Treat these as CONTEXT that helps you
+judge the copy - e.g. a comment may mark a block as a placeholder or draft,
+say which of two versions is the final one, or note that some text is an
+internal instruction not meant for the page. Use them to avoid false findings
+and to understand intent. A comment's own wording is NEVER page copy: never
+report a comment's text as Missing Copy, Copy Mismatch, or Extra Section.
+
 Before flagging Missing Copy or CTA Issue on an approved block, double
 check: is this actually an internal instruction rather than real page copy
 (a page-goal note, an SEO field, a bracketed layout annotation, a

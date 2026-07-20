@@ -138,6 +138,14 @@ select{appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='h
 .saved-doc{display:flex; align-items:center; gap:10px; margin-top:12px; padding:10px 12px; border:1px solid var(--border); border-radius:8px; background:var(--card-2); font-size:13px;}
 .saved-doc>span{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text);}
 .saved-doc .btn-sm{padding:6px 12px; font-size:12px; text-decoration:none;}
+.doc-comments{margin-top:12px; border:1px solid var(--border); border-radius:8px; background:var(--card-2); padding:10px 12px;}
+.dc-head{font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-2); margin-bottom:6px;}
+.dc-list{max-height:220px; overflow-y:auto;}
+.dc-item{padding:8px 0; border-top:1px solid var(--border);}
+.dc-item:first-child{border-top:none;}
+.dc-quote{font-size:12px; color:var(--text-2); border-left:2px solid var(--pink); padding-left:8px; margin-bottom:4px;}
+.dc-text{font-size:13px; color:var(--text); white-space:pre-wrap;}
+.dc-author{font-size:11px; color:var(--muted); margin-top:2px;}
 .btn-ghost:hover{color:var(--text); border-color:var(--border-2);}
 .run-note{margin-top:9px; text-align:center; min-height:16px;}
 
@@ -417,6 +425,11 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
         <a class="btn btn-ghost btn-sm" id="projectDocDownload" download>Download</a>
         <a class="btn btn-ghost btn-sm hidden" id="projectDocOpen" target="_blank" rel="noopener">Open in Drive</a>
       </div>
+
+      <div class="doc-comments hidden" id="docComments">
+        <div class="dc-head">Document comments <span class="count" id="docCommentsCount">0</span></div>
+        <div class="dc-list" id="docCommentsList"></div>
+      </div>
     </div>
 
     <!-- Page to compare -->
@@ -490,7 +503,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10r · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10s · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -735,6 +748,63 @@ async function parseDocxStructured(buf){
   return blocks;
 }
 async function parseDocx(buf){const r=await mammoth.extractRawText({arrayBuffer:buf});return r.value||"";}
+// Word comments live in word/comments.xml (text/author/date); the copy each one
+// is anchored to is delimited by w:commentRangeStart/End in word/document.xml.
+// Returns [{author,date,text,quoted}]. Best-effort — [] if none or on any error.
+async function parseDocxComments(buf){
+  try{
+    const zip=await JSZip.loadAsync(buf);
+    const cf=zip.file("word/comments.xml"); if(!cf)return [];
+    const W="http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+    const gid=(el)=>el.getAttributeNS(W,"id")||el.getAttribute("w:id")||el.getAttribute("id");
+    const cx=new DOMParser().parseFromString(await cf.async("string"),"application/xml");
+    const map={};
+    Array.from(cx.getElementsByTagNameNS(W,"comment")).forEach(c=>{
+      map[gid(c)]={author:c.getAttributeNS(W,"author")||c.getAttribute("w:author")||"",
+        date:c.getAttributeNS(W,"date")||"",
+        text:Array.from(c.getElementsByTagNameNS(W,"t")).map(t=>t.textContent).join("").trim(),quoted:""};
+    });
+    const df=zip.file("word/document.xml");
+    if(df){
+      const dx=new DOMParser().parseFromString(await df.async("string"),"application/xml");
+      const open=new Set();
+      (function walk(node){
+        for(let ch=node.firstElementChild;ch;ch=ch.nextElementSibling){
+          const ln=ch.localName;
+          if(ln==="commentRangeStart")open.add(gid(ch));
+          else if(ln==="commentRangeEnd")open.delete(gid(ch));
+          else if(ln==="t"&&open.size){const tx=ch.textContent;open.forEach(id=>{if(map[id])map[id].quoted+=tx;});}
+          else walk(ch);
+        }
+      })(dx.documentElement);
+    }
+    return Object.values(map).map(c=>({...c,quoted:c.quoted.trim()})).filter(c=>c.text);
+  }catch(_){return [];}
+}
+// Google Docs comments via the Drive API (the export to DOCX doesn't reliably
+// carry them). Needs the Drive token already obtained by the picker.
+async function fetchDriveComments(fileId){
+  try{
+    const fields="comments(content,author/displayName,quotedFileContent/value,resolved)";
+    const res=await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/comments?fields=${encodeURIComponent(fields)}&pageSize=100`,{headers:{Authorization:"Bearer "+_gToken}});
+    if(!res.ok)return [];
+    const d=await res.json();
+    return (d.comments||[]).map(c=>({author:(c.author&&c.author.displayName)||"",text:(c.content||"").trim(),
+      quoted:((c.quotedFileContent&&c.quotedFileContent.value)||"").trim(),resolved:!!c.resolved})).filter(c=>c.text);
+  }catch(_){return [];}
+}
+// Shows the document's comments as reviewer notes (they're also sent to the AI as
+// context in compareWithClaude). Hidden when there are none.
+function renderDocComments(){
+  const wrap=$("#docComments"); if(!wrap)return;
+  const cs=state.docComments||[];
+  if(!cs.length){wrap.classList.add("hidden");$("#docCommentsList").innerHTML="";return;}
+  $("#docCommentsCount").textContent=cs.length;
+  $("#docCommentsList").innerHTML=cs.map(c=>
+    `<div class="dc-item">${c.quoted?`<div class="dc-quote">${esc(c.quoted)}</div>`:""}<div class="dc-text">${esc(c.text)}</div>${c.author?`<div class="dc-author">${esc(c.author)}</div>`:""}</div>`
+  ).join("");
+  wrap.classList.remove("hidden");
+}
 
 // Pattern-based scaffolding (works for PDF too, where color isn't available).
 function scaffoldByPattern(t){
@@ -856,14 +926,15 @@ async function handleFile(file){
     const {pdf,lines}=await parsePdf(buf);
     const reflowed=reflowLines(lines).join("\n");
     return {rawText:reflowed,structured:false,docKind:"pdf",pdf,lines,
-      raw:splitBlocks(reflowed).map(t=>({text:t,kind:"normal"})),regionSEO:true};
+      raw:splitBlocks(reflowed).map(t=>({text:t,kind:"normal"})),regionSEO:true,comments:[]};
   }
   if(ext==="docx"){
     let raw,structured=true;
     try{raw=await parseDocxStructured(buf);}                       // color + table aware
     catch(_){const text=await parseDocx(buf);raw=splitBlocks(text).map(t=>({text:t,kind:"normal"}));structured=false;}
     const rawText=raw.map(b=>b.text).join("\n");
-    return {rawText,structured,docKind:"docx",pdf:null,lines:[],raw,regionSEO:!structured};
+    const comments=await parseDocxComments(buf);
+    return {rawText,structured,docKind:"docx",pdf:null,lines:[],raw,regionSEO:!structured,comments};
   }
   throw new Error("Unsupported file type. Use PDF or DOCX.");
 }
@@ -916,7 +987,8 @@ async function onDrivePicked(data){
     }
     const res=await fetch(url,{headers:{Authorization:"Bearer "+_gToken}});
     if(!res.ok)throw new Error("Drive download failed (HTTP "+res.status+")");
-    loadFile(new File([await res.arrayBuffer()],filename),doc.url||null);
+    await loadFile(new File([await res.arrayBuffer()],filename),doc.url||null);
+    if(doc.mimeType===GDOC_MIME){state.docComments=await fetchDriveComments(doc.id);renderDocComments();}
   }catch(e){setStatus("","");alert("Could not import from Google Drive: "+(e.message||e));}
 }
 async function openDrive(){
@@ -1209,6 +1281,7 @@ function mechanicalAndLinkChecks(page,scope){
 async function compareWithClaude(approvedBlocks,page){
   const payload={
     approved_blocks:approvedBlocks.map(b=>({text:b.text,kind:b.kind,alt:b.alt||null,url:b.url||null,note:b.note||null})),
+    approved_comments:(state.docComments||[]).map(c=>({author:c.author||"",text:c.text||"",quoted:c.quoted||""})),
     page_blocks:page.blocks.map(b=>b.text),
     page_ctas:page.ctas,
     page_links:page.links,
@@ -1377,7 +1450,7 @@ dz.addEventListener("dragover",e=>{e.preventDefault();dz.classList.add("drag");}
 dz.addEventListener("dragleave",()=>dz.classList.remove("drag"));
 dz.addEventListener("drop",e=>{e.preventDefault();dz.classList.remove("drag");if(e.dataTransfer.files[0])loadFile(e.dataTransfer.files[0]);});
 fileInput.addEventListener("change",e=>e.target.files[0]&&loadFile(e.target.files[0]));
-$("#clearFile").addEventListener("click",e=>{e.stopPropagation();state.approvedText="";state.approvedBlocks=[];state.pages=[];state.pdfDoc=null;state.pdfLines=[];state.docText="";state.docKind=null;state.docFile=null;state.docUrl=null;fileInput.value="";$("#dropFilled").classList.add("hidden");$("#dropEmpty").classList.remove("hidden");hidePageSelect();setStatus("No approved copy loaded yet.");});
+$("#clearFile").addEventListener("click",e=>{e.stopPropagation();state.approvedText="";state.approvedBlocks=[];state.pages=[];state.pdfDoc=null;state.pdfLines=[];state.docText="";state.docKind=null;state.docFile=null;state.docUrl=null;state.docComments=[];renderDocComments();fileInput.value="";$("#dropFilled").classList.add("hidden");$("#dropEmpty").classList.remove("hidden");hidePageSelect();setStatus("No approved copy loaded yet.");});
 
 function hidePageSelect(){$("#pageSelectField").classList.add("hidden");$("#pageSelect").innerHTML="";}
 function renderPageSelect(pages){
@@ -1412,12 +1485,13 @@ $("#pageUrl").addEventListener("blur",()=>{
 
 async function loadFile(file,docUrl){
   state.docUrl=docUrl||null;  // Google Drive view link when picked from Drive, else null
+  state.docComments=[];renderDocComments();  // cleared on each load; set from the parse below
   try{
     setStatus("Parsing "+file.name+"…");
-    const {rawText,raw,regionSEO,docKind,pdf,lines}=await handleFile(file);
+    const {rawText,raw,regionSEO,docKind,pdf,lines,comments}=await handleFile(file);
     if(!rawText||!rawText.trim()||!raw.length){state.approvedText="";state.approvedBlocks=[];state.pages=[];state.docFile=null;$("#dropEmpty").classList.remove("hidden");$("#dropFilled").classList.add("hidden");
       hidePageSelect();setStatus("No usable copy found in this file. If it's a scanned/image PDF, the copy can't be read automatically.","err");toast("No readable copy in file");return;}
-    state.approvedText=rawText;state.isDocx=file.name.toLowerCase().endsWith(".docx");state.docFile=file;
+    state.approvedText=rawText;state.isDocx=file.name.toLowerCase().endsWith(".docx");state.docFile=file;state.docComments=comments||[];renderDocComments();
     state.docKind=docKind;state.pdfDoc=pdf||null;state.pdfLines=lines||[];state.docText=rawText;
     $("#fileName").textContent=file.name;$("#fileMeta").textContent=`${file.name.split(".").pop().toUpperCase()} · ${(file.size/1024).toFixed(0)} KB`;
     $("#dropEmpty").classList.add("hidden");$("#dropFilled").classList.remove("hidden");
@@ -1568,8 +1642,8 @@ $("#backToProjects").addEventListener("click",()=>{location.hash="#/";});
 function resetToolState(){
   state.approvedText="";state.approvedBlocks=[];state.pages=[];state.issues=[];state.allIssues=[];state.done=new Set();
   state.docKind=null;state.pdfDoc=null;state.pdfLines=[];state.docText="";state.isDocx=false;state.score=undefined;
-  state.approvedCount=undefined;state.pageCount=undefined;state.meta={};state.docFile=null;state.docUrl=null;state.runs=[];state.runDetails={};
-  $("#historyTrigger").classList.add("hidden");$("#resetBtn").classList.add("hidden");$("#projectDocRow").classList.add("hidden");$("#historyCount").textContent="0";$("#historyModal").classList.add("hidden");
+  state.approvedCount=undefined;state.pageCount=undefined;state.meta={};state.docFile=null;state.docUrl=null;state.docComments=[];state.runs=[];state.runDetails={};
+  $("#historyTrigger").classList.add("hidden");$("#resetBtn").classList.add("hidden");$("#projectDocRow").classList.add("hidden");$("#docComments").classList.add("hidden");$("#historyCount").textContent="0";$("#historyModal").classList.add("hidden");
   $("#clientName").value="";$("#pageName").value="";$("#pageUrl").value="";
   fileInput.value="";$("#dropFilled").classList.add("hidden");$("#dropEmpty").classList.remove("hidden");
   hidePageSelect();setStatus("No approved copy loaded yet.");$("#runNote").textContent="";
