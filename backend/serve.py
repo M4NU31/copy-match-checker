@@ -138,14 +138,26 @@ Then look at page_blocks that don't correspond to any approved block and
 flag the ones that look like real reviewable copy (not boilerplate like
 cookie banners, nav, or footer legal text) as Extra Section.
 
-You may also receive approved_comments: reviewer/copywriter comments left on
-the approved document. Each has the copy it is anchored to ("quoted"), the
-comment itself ("text"), and an author. Treat these as CONTEXT that helps you
-judge the copy - e.g. a comment may mark a block as a placeholder or draft,
-say which of two versions is the final one, or note that some text is an
-internal instruction not meant for the page. Use them to avoid false findings
-and to understand intent. A comment's own wording is NEVER page copy: never
-report a comment's text as Missing Copy, Copy Mismatch, or Extra Section.
+You also receive approved_comments: reviewer/copywriter comments left on the
+approved document. Each has the copy it is anchored to ("quoted"), the comment
+itself ("text"), and an author. These carry the reviewer's INTENT and you MUST
+actively weigh every candidate issue against them:
+- Before reporting an issue, check whether a comment on or near that copy
+  explains the discrepancy. If a comment marks the block as a placeholder,
+  draft, sample, example, "do not use", an internal note, or says a specific
+  version is the final/approved one, then a mismatch or absence there is
+  EXPECTED - drop the finding (it is a false positive). If you are not certain
+  the comment applies, do not drop it; downgrade it to an Observation (Info
+  priority) instead of a Missing Copy / Copy Mismatch.
+- If a comment instead REQUIRES something ("this must be on the page", "add
+  X", "keep this") and the page lacks it, keep or strengthen that finding.
+- Whenever a comment changed your decision - kept, dropped, or downgraded a
+  finding - say so briefly in that issue's "fix" text and quote the relevant
+  comment, so the reviewer sees why. If a comment made you drop a real-looking
+  discrepancy, still surface it as an Observation that names the comment,
+  rather than staying silent.
+A comment's own wording is NEVER page copy: never report a comment's text as
+Missing Copy, Copy Mismatch, or Extra Section.
 
 Before flagging Missing Copy or CTA Issue on an approved block, double
 check: is this actually an internal instruction rather than real page copy
