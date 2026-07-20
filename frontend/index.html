@@ -480,7 +480,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10p · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10q · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -505,11 +505,11 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 <!-- reset confirmation modal -->
 <div class="modal hidden" id="resetModal">
   <div class="modal-box">
-    <div class="modal-head"><h3><svg class="ico" viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Reiniciar issues</h3><button class="x" id="closeReset"><svg class="ico" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
-    <p class="muted">Esto eliminará todos los issues actuales y dejará los contadores en 0. El historial de revisiones se conserva. Esta acción no se puede deshacer.</p>
+    <div class="modal-head"><h3><svg class="ico" viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Reset issues</h3><button class="x" id="closeReset"><svg class="ico" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <p class="muted">This clears all current issues and resets the counters to 0. The revision history is kept. This action can't be undone.</p>
     <div class="modal-actions">
-      <button class="btn btn-ghost" id="cancelReset">Cancelar</button>
-      <button class="btn btn-primary" id="confirmReset">Aceptar</button>
+      <button class="btn btn-ghost" id="cancelReset">Cancel</button>
+      <button class="btn btn-primary" id="confirmReset">Reset</button>
     </div>
   </div>
 </div>
@@ -1432,7 +1432,7 @@ async function confirmResetProject(){
     renderSummary();
     $("#results").classList.add("hidden");$("#runNote").textContent="";
     closeResetModal();toast("Issues reset");
-  }catch(e){alert("No se pudo reiniciar: "+(e.message||e));}
+  }catch(e){alert("Could not reset: "+(e.message||e));}
   finally{btn.disabled=false;}
 }
 $("#resetBtn").addEventListener("click",()=>$("#resetModal").classList.remove("hidden"));
