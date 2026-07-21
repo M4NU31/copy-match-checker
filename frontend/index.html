@@ -547,7 +547,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10ac · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10ad · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -1853,14 +1853,14 @@ $("#historyModal").addEventListener("click",e=>{if(e.target.id==="historyModal")
    who else is viewing the project (avatars) and outlines an issue in a teammate's
    color while they hover it. Runs only when signed in over https. Cursors are a
    planned Phase 2 (the relay already rebroadcasts any message type). See CLAUDE.md. */
-let _rt=null,_rtSelfId=null,_rtPeers={},_rtLastIssue=null;
+let _rt=null,_rtSelfId=null,_rtSelfColor=null,_rtPeers={};
 const _rtIssueFocus={};  // userId -> {issueId, color}
 function userColor(seed){let h=0;for(let i=0;i<seed.length;i++)h=(h*31+seed.charCodeAt(i))>>>0;return `hsl(${h%360} 68% 56%)`;}
 function rtSelf(){const a=getAuth();if(!a)return null;return {id:a.email,name:a.name||a.email,email:a.email,avatar:a.picture||"",color:userColor(a.email||"x")};}
 function rtConnect(projectId){
   rtDisconnect();
   const self=rtSelf();if(!self||location.protocol!=="https:")return;  // only when signed in over https
-  _rtSelfId=self.id;
+  _rtSelfId=self.id;_rtSelfColor=self.color;
   try{
     const ws=new WebSocket(`wss://${location.host}/ws`);_rt=ws;
     ws.onopen=()=>ws.send(JSON.stringify({type:"hello",project:String(projectId),user:self}));
@@ -1890,8 +1890,17 @@ function paintIssueOutlines(){
   Object.values(_rtIssueFocus).forEach(({issueId,color})=>{const tr=$(`#issuesBody tr[data-issue-id="${rtCssEscape(issueId)}"]`);if(tr){tr.style.outline=`2px solid ${color}`;tr.style.outlineOffset="-2px";}});
 }
 function rtCssEscape(s){return (window.CSS&&CSS.escape)?CSS.escape(String(s)):String(s).replace(/["\\\]]/g,"\\$&");}
-$("#issuesBody").addEventListener("mouseover",e=>{const tr=e.target.closest&&e.target.closest("tr[data-issue-id]");if(!tr)return;const id=tr.getAttribute("data-issue-id");if(id&&id!==_rtLastIssue){_rtLastIssue=id;rtSend({type:"issue",issueId:id,active:true});}});
-$("#issuesBody").addEventListener("mouseleave",()=>{if(_rtLastIssue){rtSend({type:"issue",issueId:_rtLastIssue,active:false});_rtLastIssue=null;}});
+// Click an issue to sticky-focus it: the outline stays in your color until you
+// click it again or pick another. Buttons inside the row keep their own actions.
+$("#issuesBody").addEventListener("click",e=>{
+  if(e.target.closest("button"))return;
+  const tr=e.target.closest&&e.target.closest("tr[data-issue-id]");if(!tr||!_rtSelfId)return;
+  const id=tr.getAttribute("data-issue-id");if(!id)return;
+  const wasActive=_rtIssueFocus[_rtSelfId]&&_rtIssueFocus[_rtSelfId].issueId===id;
+  if(wasActive){delete _rtIssueFocus[_rtSelfId];rtSend({type:"issue",issueId:id,active:false});}
+  else{_rtIssueFocus[_rtSelfId]={issueId:id,color:_rtSelfColor};rtSend({type:"issue",issueId:id,active:true});}
+  paintIssueOutlines();
+});
 
 function showDashboard(){rtDisconnect();$("#dashboardView").classList.remove("hidden");$("#projectView").classList.add("hidden");loadProjects();}
 function showProjectView(id){$("#dashboardView").classList.add("hidden");$("#projectView").classList.remove("hidden");loadProject(id);}
