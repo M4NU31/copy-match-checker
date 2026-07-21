@@ -556,7 +556,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10ag · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10ah · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -1908,12 +1908,12 @@ function renderPresence(){
   el.classList.toggle("hidden",!peers.length);
   updateResetLock();
 }
-// Reset is destructive; lock it while more than 2 people (self + peers) are here.
+// Reset is destructive; lock it whenever anyone else (2+ people total) is here.
 function updateResetLock(){
   const btn=$("#resetBtn");if(!btn)return;
-  const locked=(Object.keys(_rtPeers).length+1)>2;
+  const locked=Object.keys(_rtPeers).length>=1;
   btn.disabled=locked;
-  btn.title=locked?"Reset is locked while more than 2 people are reviewing this project":"Clear current issues (keeps history)";
+  btn.title=locked?"Reset is locked while other people are reviewing this project":"Clear current issues (keeps history)";
 }
 // Click a teammate's avatar to scroll to where their cursor is.
 $("#presence").addEventListener("click",e=>{
