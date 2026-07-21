@@ -537,7 +537,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10v · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10w · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -985,19 +985,28 @@ async function handleFile(file){
 const GOOGLE_CLIENT_ID="816397776737-f7k7k00kf0vneomna5n18qp5lqml57fd.apps.googleusercontent.com";
 const GOOGLE_API_KEY="AIzaSyDdnxoj9fui2Yz1eYQFtoL_J2nSX9fUYTU";
 const GOOGLE_APP_ID="816397776737"; // Cloud project number (the client-id prefix)
-const GOOGLE_DRIVE_SCOPE="https://www.googleapis.com/auth/drive.file";
+// One OAuth grant covers everything: identity (login) + Drive. Requesting the
+// combined scopes at sign-in means Drive never re-prompts later — the same access
+// token is reused and refreshed silently when it expires.
+const GOOGLE_SCOPES="openid email profile https://www.googleapis.com/auth/drive.file";
 const DOCX_MIME="application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const GDOC_MIME="application/vnd.google-apps.document";
-let _gPickerReady=false,_gTokenClient=null,_gToken=null;
+let _gPickerReady=false,_tokenClient=null,_gToken=null,_gTokenExp=0,_tokenResolve=null,_tokenReject=null;
 
 function loadScriptOnce(src){return new Promise((res,rej)=>{if(document.querySelector(`script[src="${src}"]`))return res();const s=document.createElement("script");s.src=src;s.async=true;s.onload=()=>res();s.onerror=()=>rej(new Error("Failed to load "+src));document.head.appendChild(s);});}
-async function ensureGoogle(){
+async function ensureTokenClient(){
   await loadScriptOnce("https://accounts.google.com/gsi/client");
-  await loadScriptOnce("https://apis.google.com/js/api.js");
-  if(!_gPickerReady){await new Promise(res=>gapi.load("picker",{callback:res}));_gPickerReady=true;}
-  if(!_gTokenClient)_gTokenClient=google.accounts.oauth2.initTokenClient({client_id:GOOGLE_CLIENT_ID,scope:GOOGLE_DRIVE_SCOPE,callback:()=>{}});
+  if(!_tokenClient)_tokenClient=google.accounts.oauth2.initTokenClient({client_id:GOOGLE_CLIENT_ID,scope:GOOGLE_SCOPES,callback:(r)=>{
+    if(r&&r.access_token){_gToken=r.access_token;_gTokenExp=Date.now()+((+r.expires_in||3600)-60)*1000;_tokenResolve&&_tokenResolve(r.access_token);}
+    else _tokenReject&&_tokenReject(new Error((r&&r.error)||"auth_failed"));
+    _tokenResolve=_tokenReject=null;
+  }});
 }
-function getDriveToken(){return new Promise((res,rej)=>{_gTokenClient.callback=(r)=>{if(r&&r.error)return rej(new Error(r.error));_gToken=r.access_token;res(r.access_token);};_gTokenClient.requestAccessToken({prompt:_gToken?"":"consent"});});}
+function requestToken(){return new Promise((res,rej)=>{_tokenResolve=res;_tokenReject=rej;_tokenClient.requestAccessToken({prompt:""});});}
+// Returns a valid access token — the cached one, or a silent refresh when expired
+// (no popup, since the grant already exists from sign-in).
+async function getToken(){await ensureTokenClient();if(_gToken&&Date.now()<_gTokenExp)return _gToken;return requestToken();}
+async function ensurePicker(){await loadScriptOnce("https://apis.google.com/js/api.js");if(!_gPickerReady){await new Promise(res=>gapi.load("picker",{callback:res}));_gPickerReady=true;}}
 function showDrivePicker(token){
   const mimes=`application/pdf,${DOCX_MIME},${GDOC_MIME}`;
   const mine=new google.picker.DocsView(google.picker.ViewId.DOCS).setMimeTypes(mimes).setOwnedByMe(true).setLabel("My Drive").setIncludeFolders(true).setSelectFolderEnabled(false);
@@ -1027,7 +1036,7 @@ async function onDrivePicked(data){
 }
 async function openDrive(){
   const btn=$("#driveBtn");
-  try{btn.disabled=true;await ensureGoogle();showDrivePicker(await getDriveToken());}
+  try{btn.disabled=true;await ensurePicker();showDrivePicker(await getToken());}
   catch(e){alert("Google Drive: "+(e.message||e));}
   finally{btn.disabled=false;}
 }
@@ -1864,25 +1873,16 @@ const AUTH_TTL=12*3600*1000;  // 12h local session
 function getAuth(){try{const a=JSON.parse(localStorage.getItem(AUTH_KEY)||"null");return a&&a.exp>Date.now()?a:null;}catch(_){return null;}}
 function setAuth(p){localStorage.setItem(AUTH_KEY,JSON.stringify({email:p.email,name:p.name,picture:p.picture,exp:Date.now()+AUTH_TTL}));}
 function showSignedIn(){const a=getAuth();if(!a)return;$("#signOutBtn").classList.remove("hidden");$("#signedInAs").textContent=a.email||"";$("#signedInAs").classList.remove("hidden");}
-let _authClient=null;
-async function ensureAuthClient(){
-  await loadScriptOnce("https://accounts.google.com/gsi/client");
-  if(!_authClient)_authClient=google.accounts.oauth2.initTokenClient({client_id:GOOGLE_CLIENT_ID,scope:"openid email profile",callback:onAuthToken});
-}
-async function onAuthToken(resp){
-  if(!resp||resp.error){$("#loginError").textContent="Sign-in failed. Please try again.";return;}
-  try{
-    const u=await(await fetch("https://www.googleapis.com/oauth2/v3/userinfo",{headers:{Authorization:"Bearer "+resp.access_token}})).json();
-    if(!u||!u.email){$("#loginError").textContent="Sign-in failed. Please try again.";return;}
-    if(u.hd!==AUTH_DOMAIN&&!(u.email||"").toLowerCase().endsWith("@"+AUTH_DOMAIN)){$("#loginError").textContent=`Use your @${AUTH_DOMAIN} account.`;return;}
-    setAuth({email:u.email,name:u.name,picture:u.picture});
-    $("#loginGate").classList.add("hidden");showSignedIn();routeFromHash();
-  }catch(_){$("#loginError").textContent="Sign-in failed. Please try again.";}
-}
 async function doSignIn(){
   $("#loginError").textContent="";
-  try{await ensureAuthClient();_authClient.requestAccessToken({prompt:""});}
-  catch(e){$("#loginError").textContent="Could not start sign-in. Make sure you are on the https URL.";}
+  try{
+    const token=await getToken();  // popup once; grants identity + Drive together
+    const u=await(await fetch("https://www.googleapis.com/oauth2/v3/userinfo",{headers:{Authorization:"Bearer "+token}})).json();
+    if(!u||!u.email){$("#loginError").textContent="Sign-in failed. Please try again.";return;}
+    if(u.hd!==AUTH_DOMAIN&&!(u.email||"").toLowerCase().endsWith("@"+AUTH_DOMAIN)){$("#loginError").textContent=`Use your @${AUTH_DOMAIN} account.`;_gToken=null;_gTokenExp=0;return;}
+    setAuth({email:u.email,name:u.name,picture:u.picture});
+    $("#loginGate").classList.add("hidden");showSignedIn();routeFromHash();
+  }catch(e){$("#loginError").textContent="Could not sign in. Make sure you are on the https URL.";}
 }
 async function initAuth(){
   // Google Sign-In only runs over https on a registered origin (the tunnel / a
@@ -1892,7 +1892,7 @@ async function initAuth(){
   if(location.protocol!=="https:"){routeFromHash();return;}
   if(getAuth()){showSignedIn();routeFromHash();return;}
   $("#loginGate").classList.remove("hidden");
-  ensureAuthClient().catch(()=>{});  // preload GIS so the first click is instant
+  ensureTokenClient().catch(()=>{});  // preload GIS so the first click is instant
 }
 function signOut(){localStorage.removeItem(AUTH_KEY);location.reload();}
 $("#signOutBtn").addEventListener("click",signOut);
