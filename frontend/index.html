@@ -171,6 +171,8 @@ select{appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='h
 .presence .peer{display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:50%; border:2px solid var(--border-2); overflow:hidden; margin-left:-7px; background:var(--card-2);}
 .presence .peer:first-child{margin-left:0;}
 .presence .peer img{width:100%; height:100%; object-fit:cover;}
+.rt-cursor{position:absolute; z-index:1500; width:28px; height:28px; border-radius:50% 50% 50% 2px; border:2px solid var(--border-2); overflow:hidden; pointer-events:none; background:var(--card-2); box-shadow:0 3px 10px rgba(0,0,0,.45); transition:left .08s linear, top .08s linear;}
+.rt-cursor img{width:100%; height:100%; object-fit:cover;}
 .btn-ghost:hover{color:var(--text); border-color:var(--border-2);}
 .run-note{margin-top:9px; text-align:center; min-height:16px;}
 
@@ -201,6 +203,7 @@ th{text-align:left; color:var(--muted); font-weight:600; font-size:11px; text-tr
 td{padding:13px 12px; border-bottom:1px solid var(--border); vertical-align:top;
   word-break:break-word; overflow-wrap:anywhere;}
 tbody tr:hover td{background:rgba(255,255,255,.014);}
+#issuesBody tr[data-issue-id]{cursor:pointer;}
 .cell-approved{color:var(--text-2);} .cell-current{color:var(--text);}
 .empty-dash{color:var(--muted);}
 /* resolved (checked) rows: dimmed, sorted to the bottom */
@@ -547,7 +550,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10ad · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10ae · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -1548,11 +1551,11 @@ async function confirmResetProject(){
   const btn=$("#confirmReset");
   try{
     btn.disabled=true;
-    if(state.projectId)await apiPost(`/projects/${state.projectId}/reset`,{});  // clears projects row; project_runs untouched
-    state.issues=[];state.allIssues=[];state.done=new Set();state.score=0;
-    renderSummary();
-    $("#results").classList.add("hidden");$("#runNote").textContent="";
-    closeResetModal();toast("Issues reset");
+    const pid=state.projectId;
+    if(pid)await apiPost(`/projects/${pid}/reset`,{});  // clears the projects row; project_runs (history) untouched
+    resetToolState();  // wipe issues, name/url fields, uploaded file, saved doc, comments — a clean project
+    if(pid){$("#historyTrigger").classList.remove("hidden");$("#resetBtn").classList.remove("hidden");loadRuns();}  // stay in the project; history kept
+    closeResetModal();toast("Project reset");
   }catch(e){alert("Could not reset: "+(e.message||e));}
   finally{btn.disabled=false;}
 }
@@ -1865,17 +1868,18 @@ function rtConnect(projectId){
     const ws=new WebSocket(`wss://${location.host}/ws`);_rt=ws;
     ws.onopen=()=>ws.send(JSON.stringify({type:"hello",project:String(projectId),user:self}));
     ws.onmessage=(e)=>{let m;try{m=JSON.parse(e.data);}catch(_){return;}rtHandle(m);};
-    ws.onclose=()=>{if(_rt===ws){_rt=null;_rtPeers={};clearRemoteIssueOutlines();renderPresence();}};
+    ws.onclose=()=>{if(_rt===ws){_rt=null;_rtPeers={};clearRemoteIssueOutlines();clearAllCursors();renderPresence();}};
     ws.onerror=()=>{};
   }catch(_){}
 }
-function rtDisconnect(){const w=_rt;_rt=null;_rtPeers={};clearRemoteIssueOutlines();renderPresence();if(w){try{w.close();}catch(_){}}}
+function rtDisconnect(){const w=_rt;_rt=null;_rtPeers={};clearRemoteIssueOutlines();clearAllCursors();renderPresence();if(w){try{w.close();}catch(_){}}}
 function rtSend(o){if(_rt&&_rt.readyState===1){try{_rt.send(JSON.stringify(o));}catch(_){}}}
 function rtHandle(m){
   if(m.type==="roster"){(m.users||[]).forEach(u=>{if(u&&u.id&&u.id!==_rtSelfId)_rtPeers[u.id]=u;});renderPresence();}
   else if(m.type==="join"){if(m.user&&m.user.id&&m.user.id!==_rtSelfId){_rtPeers[m.user.id]=m.user;renderPresence();}}
-  else if(m.type==="leave"){if(m.user&&m.user.id){delete _rtPeers[m.user.id];clearRemoteIssueOutlines(m.user.id);renderPresence();}}
+  else if(m.type==="leave"){if(m.user&&m.user.id){delete _rtPeers[m.user.id];clearRemoteIssueOutlines(m.user.id);removeCursor(m.user.id);renderPresence();}}
   else if(m.type==="issue"){if(m.user&&m.user.id!==_rtSelfId)applyRemoteIssue(m.user,m.issueId,m.active);}
+  else if(m.type==="cursor"){if(m.user&&m.user.id!==_rtSelfId)moveCursor(m.user,m);}
 }
 function renderPresence(){
   const el=$("#presence");if(!el)return;
@@ -1890,6 +1894,30 @@ function paintIssueOutlines(){
   Object.values(_rtIssueFocus).forEach(({issueId,color})=>{const tr=$(`#issuesBody tr[data-issue-id="${rtCssEscape(issueId)}"]`);if(tr){tr.style.outline=`2px solid ${color}`;tr.style.outlineOffset="-2px";}});
 }
 function rtCssEscape(s){return (window.CSS&&CSS.escape)?CSS.escape(String(s)):String(s).replace(/["\\\]]/g,"\\$&");}
+/* Phase 2: live cursors — each teammate's avatar (with their color border) follows
+   their pointer, anchored to document coordinates so it tracks the same content
+   regardless of window width or scroll. */
+const _rtCursors={};
+function rtCursorEl(user){
+  let el=_rtCursors[user.id];
+  if(!el){el=document.createElement("div");el.className="rt-cursor";el.style.borderColor=user.color||"var(--border-2)";
+    el.innerHTML=user.avatar?`<img src="${esc(user.avatar)}" alt="" onerror="this.remove()">`:"";
+    document.body.appendChild(el);_rtCursors[user.id]=el;}
+  return el;
+}
+function moveCursor(user,m){
+  const el=rtCursorEl(user),W=document.documentElement.scrollWidth||1;
+  const x=(typeof m.w==="number"&&m.w>0)?(m.x/m.w)*W:m.x;
+  el.style.left=(x-14)+"px";el.style.top=(m.y-14)+"px";
+}
+function removeCursor(userId){const el=_rtCursors[userId];if(el){el.remove();delete _rtCursors[userId];}}
+function clearAllCursors(){Object.keys(_rtCursors).forEach(removeCursor);}
+let _rtCursorT=0;
+document.addEventListener("mousemove",e=>{
+  if(!_rt||_rt.readyState!==1)return;
+  const now=Date.now();if(now-_rtCursorT<40)return;_rtCursorT=now;
+  rtSend({type:"cursor",x:e.pageX,y:e.pageY,w:document.documentElement.scrollWidth});
+});
 // Click an issue to sticky-focus it: the outline stays in your color until you
 // click it again or pick another. Buttons inside the row keep their own actions.
 $("#issuesBody").addEventListener("click",e=>{

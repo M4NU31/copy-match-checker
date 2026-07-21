@@ -706,11 +706,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if not DB_AVAILABLE:
             return self._db_unavailable()
         try:
-            # Clears the project's CURRENT issues/score (the mutable state the grid
-            # and project page read) but leaves project_runs untouched, so the
-            # revision history is preserved. Does not insert a run row.
+            # Wipes the project's whole CURRENT state back to a clean project —
+            # issues, score, the name/URL fields, and the stored approved doc —
+            # but leaves project_runs untouched, so the revision history is kept.
+            # Does not insert a run row.
             row = db_query(
-                f"""UPDATE projects SET issues='[]'::jsonb, score=NULL, updated_at=now()
+                f"""UPDATE projects SET issues='[]'::jsonb, score=NULL,
+                    site_name='', page_name='', page_url='', last_run_at=NULL,
+                    doc_filename=NULL, doc_content_type=NULL, doc_bytes=NULL, doc_url=NULL,
+                    updated_at=now()
                     WHERE id=%s RETURNING {PROJECT_COLUMNS}""",
                 (pid,), fetch="one")
             if not row:
