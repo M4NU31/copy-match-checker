@@ -556,7 +556,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10ah · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10ai · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -1650,12 +1650,12 @@ async function saveProjectRun(){
    The main landing page is a shared, team-wide grid of projects (stored in
    Postgres via serve.py's /projects endpoints — see CLAUDE.md). The QA tool
    itself (upload/run/results, everything above) only becomes reachable once
-   a project is opened. Routing is a plain location.hash switch — "" / "#/" is
-   the dashboard, "#/p/<id>" is a project — so a project is bookmarkable/
-   shareable without any router library. */
+   a project is opened. Routing uses the History API — "/" is the dashboard,
+   "/project/<slug>" a project (friendly, bookmarkable/shareable URLs). nginx
+   serves index.html for any path (SPA fallback); no router library. */
 const PROJ_CARD_ICON=`<svg class="ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>`;
 function projCardHtml(p){
-  return `<button class="proj-card" data-id="${p.id}" title="${esc(p.name)}">
+  return `<button class="proj-card" data-id="${p.id}" data-slug="${esc(p.slug||p.id)}" title="${esc(p.name)}">
     <div class="proj-card-icon">${PROJ_CARD_ICON}</div>
     <h3>${esc(p.name)}</h3>
   </button>`;
@@ -1669,7 +1669,7 @@ function renderProjGrid(){
   const list=q?state.projects.filter(p=>(p.name||"").toLowerCase().includes(q)||(p.site_name||"").toLowerCase().includes(q)||(p.page_name||"").toLowerCase().includes(q)):state.projects;
   const emptyMsg=list.length?"":`<div class="proj-empty">${state.projects.length?"No projects match your search.":"No projects yet — click the + card to create the first one."}</div>`;
   grid.innerHTML=emptyMsg+list.map(projCardHtml).join("")+ADD_CARD_HTML;
-  grid.querySelectorAll(".proj-card:not(.add-card)").forEach(c=>c.addEventListener("click",()=>{location.hash="#/p/"+c.dataset.id;}));
+  grid.querySelectorAll(".proj-card:not(.add-card)").forEach(c=>c.addEventListener("click",()=>{goProject(c.dataset.id,c.dataset.slug);}));
   $("#addProjCard").addEventListener("click",openAddProjectModal);
 }
 async function loadProjects(){
@@ -1693,10 +1693,10 @@ $("#createProjectBtn").addEventListener("click",async()=>{
   try{
     const p=await apiPost("/projects",{name});
     $("#addProjectModal").classList.add("hidden");
-    location.hash="#/p/"+p.id;
+    goProject(p.id,p.slug);
   }catch(e){toast("Could not create project: "+(e.message||e));}
 });
-$("#backToProjects").addEventListener("click",()=>{location.hash="#/";});
+$("#backToProjects").addEventListener("click",()=>{goDashboard();});
 
 function resetToolState(){
   state.approvedText="";state.approvedBlocks=[];state.pages=[];state.issues=[];state.allIssues=[];state.status=new Map();
@@ -1968,11 +1968,13 @@ $("#issuesBody").addEventListener("click",e=>{
 
 function showDashboard(){rtDisconnect();$("#dashboardView").classList.remove("hidden");$("#projectView").classList.add("hidden");loadProjects();}
 function showProjectView(id){$("#dashboardView").classList.add("hidden");$("#projectView").classList.remove("hidden");loadProject(id);}
-function routeFromHash(){
-  const m=location.hash.match(/^#\/p\/(\d+)/);
-  if(m)showProjectView(+m[1]);else showDashboard();
-}
-window.addEventListener("hashchange",routeFromHash);
+// Friendly path routing (History API): "/" is the dashboard, "/project/<slug>" a
+// project. nginx serves index.html for any path (SPA fallback), then this routes.
+function goProject(id,slug){history.pushState(null,"","/project/"+encodeURIComponent(slug||id));showProjectView(id);}
+function goDashboard(){history.pushState(null,"","/");showDashboard();}
+async function openProjectBySlug(slug){try{const p=await apiGet("/projects/by-slug/"+encodeURIComponent(slug));if(p&&p.id)showProjectView(p.id);else showDashboard();}catch(_){showDashboard();}}
+function route(){const m=location.pathname.match(/^\/project\/([^/]+)/);if(m)openProjectBySlug(decodeURIComponent(m[1]));else showDashboard();}
+window.addEventListener("popstate",route);
 
 /* ---------------- Login gate (Google Sign-In, punchteam.com) ----------------
    Reuses the same Google OAuth client. Client-side gate: blocks the UI until the
@@ -2002,7 +2004,7 @@ async function doSignIn(){
     if(!u||!u.email){$("#loginError").textContent="Sign-in failed. Please try again.";return;}
     if(u.hd!==AUTH_DOMAIN&&!(u.email||"").toLowerCase().endsWith("@"+AUTH_DOMAIN)){$("#loginError").textContent=`Use your @${AUTH_DOMAIN} account.`;_gToken=null;_gTokenExp=0;try{sessionStorage.removeItem(GTOKEN_KEY);}catch(_){}return;}
     setAuth({email:u.email,name:u.name,picture:u.picture});
-    $("#loginGate").classList.add("hidden");showSignedIn();routeFromHash();
+    $("#loginGate").classList.add("hidden");showSignedIn();route();
   }catch(e){$("#loginError").textContent="Could not sign in. Make sure you are on the https URL.";}
 }
 async function initAuth(){
@@ -2010,8 +2012,8 @@ async function initAuth(){
   // domain). On plain http (the bare IP, or localhost) it can't init, so don't
   // lock the tool there - go straight in. Login is enforced once served over
   // https. A real domain makes it universal.
-  if(location.protocol!=="https:"){routeFromHash();return;}
-  if(getAuth()){showSignedIn();routeFromHash();return;}
+  if(location.protocol!=="https:"){route();return;}
+  if(getAuth()){showSignedIn();route();return;}
   $("#loginGate").classList.remove("hidden");
   ensureTokenClient().catch(()=>{});  // preload GIS so the first click is instant
 }

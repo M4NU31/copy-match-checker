@@ -472,6 +472,23 @@ def init_db():
             # before ran_by existed) picks it up without a manual migration.
             cur.execute("ALTER TABLE project_runs ADD COLUMN IF NOT EXISTS ran_by TEXT NOT NULL DEFAULT '';")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_project_runs_project_id ON project_runs(project_id, ran_at DESC);")
+            # Friendly URL slug per project. Backfill unique slugs for any existing
+            # rows, then enforce uniqueness so /project/<slug> resolves to one row.
+            cur.execute("ALTER TABLE projects ADD COLUMN IF NOT EXISTS slug TEXT;")
+            cur.execute("SELECT id, name, slug FROM projects ORDER BY id")
+            _rows = cur.fetchall()
+            _used = set(s for (_i, _n, s) in _rows if s)
+            for (_pid, _name, _slug) in _rows:
+                if _slug:
+                    continue
+                _base = _slugify(_name)
+                _s, _n = _base, 1
+                while _s in _used:
+                    _n += 1
+                    _s = f"{_base}-{_n}"
+                _used.add(_s)
+                cur.execute("UPDATE projects SET slug=%s WHERE id=%s", (_s, _pid))
+            cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_slug ON projects(slug);")
         conn.commit()
     finally:
         conn.close()
@@ -490,7 +507,23 @@ def db_query(sql, params=(), fetch=None):
         conn.close()
 
 
-PROJECT_COLUMNS = "id,name,site_name,page_name,page_url,score,issues,created_at,updated_at,last_run_at,doc_filename,doc_url"
+def _slugify(s):
+    s = re.sub(r"[^a-z0-9]+", "-", (s or "").strip().lower())
+    return s.strip("-")[:80] or "project"
+
+
+def _unique_slug(base):
+    """A URL slug for a project name, made unique by appending -2, -3, ... on
+    collision (e.g. "fortreum-accreditations", then "...-2")."""
+    base = _slugify(base)
+    slug, n = base, 1
+    while db_query("SELECT 1 FROM projects WHERE slug=%s", (slug,), fetch="one"):
+        n += 1
+        slug = f"{base}-{n}"
+    return slug
+
+
+PROJECT_COLUMNS = "id,name,site_name,page_name,page_url,score,issues,created_at,updated_at,last_run_at,doc_filename,doc_url,slug"
 
 
 def _issue_stats(issues, score):
@@ -515,10 +548,10 @@ def _issue_stats(issues, score):
 
 def _project_summary(row):
     (pid, name, site_name, page_name, page_url, score, issues, created_at, updated_at,
-     last_run_at, doc_filename, doc_url) = row
+     last_run_at, doc_filename, doc_url, slug) = row
     total, resolved, live = _issue_stats(issues or [], score)
     return {
-        "id": pid, "name": name, "site_name": site_name, "page_name": page_name,
+        "id": pid, "name": name, "slug": slug, "site_name": site_name, "page_name": page_name,
         "page_url": page_url, "score": score, "live_score": live,
         "issues_total": total, "issues_resolved": resolved,
         "last_run_at": last_run_at.isoformat() if last_run_at else None,
@@ -549,6 +582,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self.handle_render()
         if self.path == "/projects":
             return self.handle_projects_list()
+        m = re.match(r"^/projects/by-slug/([^/?]+)$", self.path)
+        if m:
+            return self.handle_project_by_slug(urllib.parse.unquote(m.group(1)))
         m = re.match(r"^/projects/(\d+)$", self.path)
         if m:
             return self.handle_project_get(int(m.group(1)))
@@ -686,6 +722,19 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:  # noqa: BLE001
             self._send(502, "application/json", json.dumps({"error": str(e)}).encode("utf-8"))
 
+    def handle_project_by_slug(self, slug):
+        if not self._secret_ok():
+            return
+        if not DB_AVAILABLE:
+            return self._db_unavailable()
+        try:
+            row = db_query(f"SELECT {PROJECT_COLUMNS} FROM projects WHERE slug=%s", (slug,), fetch="one")
+            if not row:
+                return self._send(404, "application/json", json.dumps({"error": "Project not found"}).encode("utf-8"))
+            self._send(200, "application/json", json.dumps(_project_full(row)).encode("utf-8"))
+        except Exception as e:  # noqa: BLE001
+            self._send(502, "application/json", json.dumps({"error": str(e)}).encode("utf-8"))
+
     def handle_project_create(self):
         if not self._secret_ok():
             return
@@ -699,7 +748,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if not name:
                 return self._send(400, "application/json", json.dumps({"error": "name is required"}).encode("utf-8"))
             row = db_query(
-                f"INSERT INTO projects (name) VALUES (%s) RETURNING {PROJECT_COLUMNS}", (name,), fetch="one")
+                f"INSERT INTO projects (name, slug) VALUES (%s, %s) RETURNING {PROJECT_COLUMNS}",
+                (name, _unique_slug(name)), fetch="one")
             self._send(200, "application/json", json.dumps(_project_full(row)).encode("utf-8"))
         except Exception as e:  # noqa: BLE001
             self._send(502, "application/json", json.dumps({"error": str(e)}).encode("utf-8"))
