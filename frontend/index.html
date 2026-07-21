@@ -100,6 +100,10 @@ select{appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='h
 .drop-icon{color:var(--pink); display:flex; justify-content:center; margin-bottom:8px;}
 .drop-icon .ico{width:30px; height:30px;}
 .dropzone p{margin:5px 0 2px;}
+.picker-row{display:flex; gap:14px; align-items:stretch;}
+.picker-box{flex:1; min-width:0;}
+.drive-box{background:transparent; font:inherit; color:var(--text); display:flex; flex-direction:column; justify-content:center;}
+@media (max-width:640px){.picker-row{flex-direction:column;}}
 .file-chip{display:flex; align-items:center; gap:12px; text-align:left; background:var(--card-2);
   border:1px solid var(--border-2); border-radius:10px; padding:12px 14px;}
 .file-chip .file-ico{color:var(--pink);}
@@ -430,27 +434,26 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
         <label class="field"><span>Page Name</span><input type="text" id="pageName" /></label>
       </div>
 
-      <div class="dropzone" id="dropzone">
-        <input type="file" id="fileInput" accept=".pdf,.docx" hidden />
-        <div id="dropEmpty">
-          <div class="drop-icon"><svg class="ico" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
-          <p><strong>Upload file</strong> or drag &amp; drop</p>
-          <p class="muted small">Supports PDF and DOCX · Max ~10 MB</p>
-        </div>
-        <div id="dropFilled" class="hidden">
-          <div class="file-chip">
-            <svg class="ico ico-lg file-ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            <div><strong id="fileName">file.docx</strong><div class="muted small" id="fileMeta">DOCX · 0 KB</div></div>
-            <button class="x" id="clearFile" title="Remove"><svg class="ico ico-sm" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <div class="picker-row">
+        <div class="dropzone picker-box" id="dropzone">
+          <input type="file" id="fileInput" accept=".pdf,.docx" hidden />
+          <div id="dropEmpty">
+            <div class="drop-icon"><svg class="ico" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+            <p><strong>Upload file</strong> or drag &amp; drop</p>
+            <p class="muted small">Supports PDF and DOCX · Max ~10 MB</p>
+          </div>
+          <div id="dropFilled" class="hidden">
+            <div class="file-chip">
+              <svg class="ico ico-lg file-ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <div><strong id="fileName">file.docx</strong><div class="muted small" id="fileMeta">DOCX · 0 KB</div></div>
+              <button class="x" id="clearFile" title="Remove"><svg class="ico ico-sm" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
           </div>
         </div>
-      </div>
-
-      <div class="drive-row" id="driveRow" hidden>
-        <span class="drive-or">or</span>
-        <button type="button" class="btn btn-outline btn-drive" id="driveBtn">
-          <svg class="ico ico-sm" viewBox="0 0 24 24"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
-          Search in Google Drive
+        <button type="button" class="dropzone picker-box drive-box hidden" id="driveBox">
+          <div class="drop-icon"><svg class="ico" viewBox="0 0 24 24"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></div>
+          <p><strong>Search in Google Drive</strong></p>
+          <p class="muted small">My Drive or Shared with me</p>
         </button>
       </div>
 
@@ -540,7 +543,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10y · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10z · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -1018,13 +1021,13 @@ async function onDrivePicked(data){
   }catch(e){setStatus("","");alert("Could not import from Google Drive: "+(e.message||e));}
 }
 async function openDrive(){
-  const btn=$("#driveBtn");
+  const btn=$("#driveBox");
   try{btn.disabled=true;await ensurePicker();showDrivePicker(await getToken());}
   catch(e){alert("Google Drive: "+(e.message||e));}
   finally{btn.disabled=false;}
 }
 // OAuth needs an HTTPS origin registered in Google Cloud — only offer it there.
-if(location.protocol==="https:"){const r=$("#driveRow");if(r){r.hidden=false;$("#driveBtn").addEventListener("click",openDrive);}}
+if(location.protocol==="https:"){const r=$("#driveBox");if(r){r.classList.remove("hidden");r.addEventListener("click",openDrive);}}
 
 /* ---------------- page segmentation (multi-page documents) ----------------
    Approved-copy decks often bundle the copy for an entire site into one file,
