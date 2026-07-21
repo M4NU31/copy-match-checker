@@ -211,12 +211,15 @@ tr.done td{opacity:.4;}
 tr.done td.done-cell{opacity:1;}
 tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .done-cell{text-align:center;}
-.done-btn{background:transparent; color:#FF1449; border:1px solid #FF1449; border-radius:8px; font-size:11px;
-  font-weight:600; padding:5px 12px; cursor:pointer; line-height:1.2; white-space:nowrap; transition:.15s;}
-.done-btn:hover{background:rgba(255,20,73,.10);}
-.done-btn.undo{color:#15a37a; border-color:#15a37a;}
-.done-btn.undo:hover{background:rgba(21,163,122,.12);}
-.col-done{width:112px;} .col-sec{width:150px;} .col-type{width:124px;} .col-view{width:54px;}
+.status-btn{display:inline-flex; align-items:center; gap:5px; background:color-mix(in srgb, var(--sc) 14%, transparent); color:var(--sc); border:1px solid var(--sc); border-radius:8px; font-size:11px;
+  font-weight:600; padding:5px 9px 5px 11px; cursor:pointer; line-height:1.2; white-space:nowrap; transition:.15s;}
+.status-btn:hover{background:color-mix(in srgb, var(--sc) 24%, transparent);}
+.status-btn .caret{width:13px; height:13px; opacity:.8;}
+.status-menu{position:absolute; z-index:1800; min-width:176px; background:var(--card-2); border:1px solid var(--border-2); border-radius:10px; padding:5px; box-shadow:0 10px 28px rgba(0,0,0,.5);}
+.status-opt{display:flex; align-items:center; gap:9px; width:100%; background:transparent; border:none; color:var(--text); font-size:13px; text-align:left; padding:8px 10px; border-radius:7px; cursor:pointer;}
+.status-opt:hover{background:rgba(255,255,255,.06);}
+.status-opt .dot{width:10px; height:10px; border-radius:50%; flex:none;}
+.col-done{width:172px;} .col-sec{width:150px;} .col-type{width:124px;} .col-view{width:54px;}
 .view-cell{text-align:center;}
 .type-pill{font-size:11px; padding:2px 8px; border-radius:6px; white-space:nowrap;
   background:var(--card-2); border:1px solid var(--border-2); color:var(--text-2);}
@@ -550,7 +553,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10ae · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10af · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -625,7 +628,7 @@ const $=(s)=>document.querySelector(s), $$=(s)=>Array.from(document.querySelecto
 // <meta name="api-base"> in <head>. localhost/file:// always force same-origin
 // so local dev never hits a remote backend. See DEPLOY.md.
 const API_BASE=(location.hostname==="localhost"||location.hostname==="127.0.0.1"||location.protocol==="file:")?"":(document.querySelector('meta[name="api-base"]')?.content||"").replace(/\/$/,"");
-const state={approvedText:"",approvedBlocks:[],pages:[],issues:[],allIssues:[],done:new Set(),
+const state={approvedText:"",approvedBlocks:[],pages:[],issues:[],allIssues:[],status:new Map(),
   docKind:null,pdfDoc:null,pdfLines:[],docText:"",isDocx:false,isRunning:false,runCtrl:null,
   projectId:null,projects:[],runs:[],runDetails:{},docFile:null};
 
@@ -1343,12 +1346,35 @@ async function compareWithClaude(approvedBlocks,page){
 function priRank(p){return {High:0,Medium:1,Low:2,Info:3}[p]??4;}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function issueId(i){return i.type+"|"+i.section+"|"+(i.approved||"")+"|"+(i.current||"");}
+// Per-issue status (state.status: id -> status). "done"/"solved_qa" are resolved.
+const STATUS_ORDER=["not_started","in_progress","done","solved_qa"];
+const STATUS_LABELS={not_started:"Not Started",in_progress:"In Progress",done:"Done",solved_qa:"Solved on QA Tool"};
+const STATUS_COLORS={not_started:"#e8584b",in_progress:"#e8b018",done:"#15a37a",solved_qa:"#15a37a"};
+const RESOLVED_STATUS=new Set(["done","solved_qa"]);
+function statusOf(id){return state.status.get(id)||"not_started";}
+function isResolvedId(id){return RESOLVED_STATUS.has(statusOf(id));}
+// Styled status dropdown: one shared menu positioned under the clicked status button.
+const _statusMenu=document.createElement("div");
+_statusMenu.className="status-menu hidden";_statusMenu.id="statusMenu";
+_statusMenu.innerHTML=STATUS_ORDER.map(s=>`<button class="status-opt" data-st="${s}"><span class="dot" style="background:${STATUS_COLORS[s]}"></span>${STATUS_LABELS[s]}</button>`).join("");
+document.body.appendChild(_statusMenu);
+let _statusTarget=null;
+function openStatusMenu(btn,id){_statusTarget=id;const r=btn.getBoundingClientRect();_statusMenu.style.left=(r.right+window.scrollX-176)+"px";_statusMenu.style.top=(r.bottom+window.scrollY+4)+"px";_statusMenu.classList.remove("hidden");}
+function closeStatusMenu(){_statusMenu.classList.add("hidden");_statusTarget=null;}
+function setIssueStatus(id,status){
+  state.status.set(id,status);
+  renderSummary();renderTable(state.activeFilter||"all");
+  if(state.projectId)apiPatch(`/projects/${state.projectId}/issues/${encodeURIComponent(id)}`,{status}).catch(e=>toast("Could not save: "+(e.message||e)));
+}
+_statusMenu.addEventListener("click",e=>{const o=e.target.closest(".status-opt");if(!o||!_statusTarget)return;setIssueStatus(_statusTarget,o.dataset.st);closeStatusMenu();});
+$("#issuesBody").addEventListener("click",e=>{const b=e.target.closest(".status-btn");if(b){e.stopPropagation();openStatusMenu(b,b.dataset.id);}});
+document.addEventListener("click",e=>{if(!e.target.closest("#statusMenu")&&!e.target.closest(".status-btn"))closeStatusMenu();});
 function renderAll(){
   state.allIssues=[...state.issues].sort((a,b)=>priRank(a.priority)-priRank(b.priority));
   renderSummary();setActiveTab("all");
   $("#results").classList.remove("hidden");$("#results").scrollIntoView({behavior:"smooth",block:"start"});
 }
-function countType(type){const I=state.allIssues.filter(i=>!state.done.has(issueId(i)));  // open (unresolved) only
+function countType(type){const I=state.allIssues.filter(i=>!isResolvedId(issueId(i)));  // open (unresolved) only
   if(type==="all")return I.filter(i=>i.type!=="Observation").length;       // errors only
   if(type==="CTA Issue")return I.filter(i=>i.type==="CTA Issue"||i.type==="Link Review").length;
   return I.filter(i=>i.type===type).length;}
@@ -1361,7 +1387,7 @@ function liveScore(){
   const errIssues=state.allIssues.filter(i=>i.type!=="Observation");
   const total=errIssues.length;
   if(!total)return 100;
-  const open=errIssues.filter(i=>!state.done.has(issueId(i))).length;
+  const open=errIssues.filter(i=>!isResolvedId(issueId(i))).length;
   const base=state.score||0;
   return Math.round(base+(100-base)*(1-open/total));
 }
@@ -1370,7 +1396,7 @@ function setActiveTab(filter){
   $$("#summaryTabs .tab-stat").forEach(t=>t.classList.toggle("active",t.dataset.filter===filter));
   renderTable(filter);
 }
-function renderSummary(){const I=state.allIssues.filter(i=>!state.done.has(issueId(i)));
+function renderSummary(){const I=state.allIssues.filter(i=>!isResolvedId(issueId(i)));
   $("#sTotal").textContent=countType("all");
   $("#sMissing").textContent=I.filter(i=>i.type==="Missing Copy").length;
   $("#sMismatch").textContent=I.filter(i=>i.type==="Copy Mismatch").length;
@@ -1385,26 +1411,17 @@ function renderTable(filter){
   else if(filter==="CTA Issue")rows=rows.filter(i=>i.type==="CTA Issue"||i.type==="Link Review");
   else rows=rows.filter(i=>i.type===filter);
   // keep priority order, but push resolved (checked) rows to the bottom
-  rows=rows.map((i,idx)=>({i,idx,done:state.done.has(issueId(i))})).sort((a,b)=>(a.done-b.done)||(a.idx-b.idx));
+  rows=rows.map((i,idx)=>({i,idx,done:isResolvedId(issueId(i))})).sort((a,b)=>(a.done-b.done)||(a.idx-b.idx));
   if(!rows.length){body.innerHTML=`<tr><td colspan="7" class="no-rows">✓ No issues in this category.</td></tr>`;$("#rowCount").textContent="0 issues";return;}
   const canLocate=!!state.docKind;
-  body.innerHTML=rows.map(({i,done})=>{const id=issueId(i);return `<tr class="${done?'done':''}" data-issue-id="${esc(id)}">
+  body.innerHTML=rows.map(({i,done})=>{const id=issueId(i),st=statusOf(id);return `<tr class="${done?'done':''}" data-issue-id="${esc(id)}">
     <td>${esc(i.section)}</td>
     <td class="view-cell">${canLocate?`<button class="locate-btn" data-loc="${esc(id)}" title="Preview in the document"><svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>`:""}</td>
     <td><span class="type-pill">${esc(i.type)}</span></td>
     <td class="cell-approved">${i.approved==="—"?'<span class="empty-dash">—</span>':esc(i.approved)}</td>
     <td class="cell-current">${i.current==="—"?'<span class="empty-dash">—</span>':esc(i.current)}</td>
     <td>${esc(i.fix)}</td>
-    <td class="done-cell"><button class="done-btn${done?' undo':''}" data-id="${esc(id)}" title="${done?'Mark as not done':'Mark as resolved'}">${done?'Done':'In progress'}</button></td></tr>`;}).join("");
-  body.querySelectorAll(".done-btn").forEach(btn=>btn.addEventListener("click",()=>{
-    const id=btn.dataset.id,nowDone=!state.done.has(id);
-    if(nowDone)state.done.add(id);else state.done.delete(id);
-    renderSummary();  // Match Score + tab counts move live as issues get resolved/unresolved
-    renderTable(state.activeFilter||"all");
-    // Persist so the dashboard grid's resolved/total count reflects this without a re-run.
-    if(state.projectId)apiPatch(`/projects/${state.projectId}/issues/${encodeURIComponent(id)}`,{done:nowDone})
-      .catch(e=>toast("Could not save: "+(e.message||e)));
-  }));
+    <td class="done-cell"><button class="status-btn" data-id="${esc(id)}" style="--sc:${STATUS_COLORS[st]}">${STATUS_LABELS[st]}<svg class="ico caret" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></button></td></tr>`;}).join("");
   body.querySelectorAll(".locate-btn").forEach(b=>b.addEventListener("click",()=>{
     const iss=state.allIssues.find(x=>issueId(x)===b.dataset.loc); if(iss)locateIssue(iss);
   }));
@@ -1584,7 +1601,7 @@ async function run(){
     const html=await fetchPageHtml(url);
     const cms=detectCms(html);const page=extractVisible(html,scope);
     if(!page.fullText||page.fullText.length<20)throw new Error("Could not extract readable text from the page.");
-    state.done=new Set();  // fresh run → clear resolved marks
+    state.status=new Map();  // fresh run → clear resolved marks
     $("#runNote").textContent="Asking Claude to compare the copy…";
     const cmp=await compareWithClaude(state.approvedBlocks,page);
     const mechIssues=mechanicalAndLinkChecks(page,scope);
@@ -1679,7 +1696,7 @@ $("#createProjectBtn").addEventListener("click",async()=>{
 $("#backToProjects").addEventListener("click",()=>{location.hash="#/";});
 
 function resetToolState(){
-  state.approvedText="";state.approvedBlocks=[];state.pages=[];state.issues=[];state.allIssues=[];state.done=new Set();
+  state.approvedText="";state.approvedBlocks=[];state.pages=[];state.issues=[];state.allIssues=[];state.status=new Map();
   state.docKind=null;state.pdfDoc=null;state.pdfLines=[];state.docText="";state.isDocx=false;state.score=undefined;
   state.approvedCount=undefined;state.pageCount=undefined;state.meta={};state.docFile=null;state.docUrl=null;state.docComments=[];state.runs=[];state.runDetails={};
   $("#historyTrigger").classList.add("hidden");$("#resetBtn").classList.add("hidden");$("#projectDocRow").classList.add("hidden");$("#docComments").classList.add("hidden");$("#historyCount").textContent="0";$("#historyModal").classList.add("hidden");
@@ -1701,7 +1718,7 @@ async function loadProject(id){
     $("#pageUrl").value=p.page_url||"";
     if(p.issues&&p.issues.length){
       state.issues=p.issues;state.score=p.score||0;
-      state.done=new Set(p.issues.filter(i=>i.done).map(i=>i.id));
+      state.status=new Map(p.issues.map(i=>[i.id,i.status||(i.done?"done":"not_started")]));
       state.meta={client:p.site_name,page:p.page_name,url:p.page_url,cms:"—"};
       renderAll();
       $("#runNote").textContent=`Showing the last run · ${new Date(p.last_run_at).toLocaleString()}`;

@@ -500,7 +500,11 @@ def _issue_stats(issues, score):
     — so the dashboard card and the project page never show two different numbers."""
     errors = [i for i in issues if isinstance(i, dict) and i.get("type") != "Observation"]
     total = len(errors)
-    resolved = len([i for i in errors if i.get("done")])
+    # "done" and "solved_qa" statuses count as resolved; fall back to the legacy
+    # boolean `done` for rows saved before the 4-state status existed.
+    resolved = len([i for i in errors
+                    if i.get("status") in ("done", "solved_qa")
+                    or (not i.get("status") and i.get("done"))])
     if total == 0:
         live = 100
     else:
@@ -877,6 +881,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         raw = self.rfile.read(length) if length else b"{}"
         try:
             payload = json.loads(raw.decode("utf-8"))
+            status = payload.get("status")
             done = bool(payload.get("done"))
             row = db_query("SELECT issues FROM projects WHERE id=%s", (pid,), fetch="one")
             if not row:
@@ -885,7 +890,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             found = False
             for issue in issues:
                 if isinstance(issue, dict) and issue.get("id") == issue_id:
-                    issue["done"] = done
+                    if status is not None:
+                        issue["status"] = status
+                        issue["done"] = status in ("done", "solved_qa")  # keep the legacy flag in sync
+                    else:
+                        issue["done"] = done
                     found = True
             db_query("UPDATE projects SET issues=%s::jsonb, updated_at=now() WHERE id=%s", (json.dumps(issues), pid))
             total, resolved, _ = _issue_stats(issues, None)
