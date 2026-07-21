@@ -160,6 +160,9 @@ select{appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='h
 .login-error{color:var(--pink); font-size:13px; margin-top:14px; min-height:18px;}
 .user-chip{display:inline-flex; align-items:center; gap:8px; color:var(--text-2); font-size:13px;}
 .user-chip img{width:26px; height:26px; border-radius:50%; object-fit:cover; background:var(--card-2);}
+.icon-btn{display:inline-flex; align-items:center; justify-content:center; padding:7px; border:none; background:transparent; color:var(--text-2); cursor:pointer; border-radius:7px; transition:color .18s, background .18s;}
+.icon-btn:hover{color:var(--text); background:var(--card-2);}
+.icon-btn .ico{width:17px; height:17px;}
 .btn-ghost:hover{color:var(--text); border-color:var(--border-2);}
 .run-note{margin-top:9px; text-align:center; min-height:16px;}
 
@@ -373,9 +376,8 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
         <img id="userAvatar" alt="" />
         <span id="signedInAs"></span>
       </span>
-      <button class="btn btn-ghost hidden" id="signOutBtn" title="Sign out">
+      <button class="icon-btn hidden" id="signOutBtn" title="Sign out" aria-label="Sign out">
         <svg class="ico ico-sm" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-        Sign out
       </button>
     </div>
   </header>
@@ -538,7 +540,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10x · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10y · Punch Toolkit</span>
   </footer>
 </div>
 
