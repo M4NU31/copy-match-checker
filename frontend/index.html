@@ -146,6 +146,12 @@ select{appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='h
 .dc-quote{font-size:12px; color:var(--text-2); border-left:2px solid var(--pink); padding-left:8px; margin-bottom:4px;}
 .dc-text{font-size:13px; color:var(--text); white-space:pre-wrap;}
 .dc-author{font-size:11px; color:var(--muted); margin-top:2px;}
+.login-gate{position:fixed; inset:0; z-index:2000; display:flex; align-items:center; justify-content:center; background:var(--bg); padding:24px;}
+.login-box{max-width:400px; width:100%; text-align:center; background:var(--card); border:1px solid var(--border); border-radius:14px; padding:40px 32px;}
+.login-box h1{font-size:22px; margin:0 0 8px;}
+.login-box .muted{margin:0 0 24px; font-size:14px;}
+.login-box #googleBtn{display:flex; justify-content:center; min-height:44px;}
+.login-error{color:var(--pink); font-size:13px; margin-top:16px; min-height:18px;}
 .btn-ghost:hover{color:var(--text); border-color:var(--border-2);}
 .run-note{margin-top:9px; text-align:center; min-height:16px;}
 
@@ -323,6 +329,16 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 </style>
 </head>
 <body>
+
+<div id="loginGate" class="login-gate hidden">
+  <div class="login-box">
+    <h1>Copy Match Checker</h1>
+    <p class="muted">Sign in with your @punchteam.com Google account to continue.</p>
+    <div id="googleBtn"></div>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
 <div class="app">
 
   <!-- ============ HEADER ============ -->
@@ -341,6 +357,11 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
       <button class="btn btn-ghost" id="howBtn">
         <svg class="ico ico-sm" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
         How it works
+      </button>
+      <span class="muted small hidden" id="signedInAs"></span>
+      <button class="btn btn-ghost hidden" id="signOutBtn" title="Sign out">
+        <svg class="ico ico-sm" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Sign out
       </button>
     </div>
   </header>
@@ -503,7 +524,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10t · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10u · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -1818,7 +1839,46 @@ function routeFromHash(){
   if(m)showProjectView(+m[1]);else showDashboard();
 }
 window.addEventListener("hashchange",routeFromHash);
-routeFromHash();
+
+/* ---------------- Login gate (Google Sign-In, punchteam.com) ----------------
+   Reuses the same Google OAuth client. Client-side gate: blocks the UI until the
+   user signs in with their Workspace account. Google Sign-In needs an https
+   origin registered in the Cloud console (won't init over http://IP). This gates
+   the UI, not the API. See CLAUDE.md. */
+const AUTH_DOMAIN="punchteam.com";
+const AUTH_KEY="cmc_auth";
+const AUTH_TTL=12*3600*1000;  // 12h local session
+function getAuth(){try{const a=JSON.parse(localStorage.getItem(AUTH_KEY)||"null");return a&&a.exp>Date.now()?a:null;}catch(_){return null;}}
+function setAuth(p){localStorage.setItem(AUTH_KEY,JSON.stringify({email:p.email,name:p.name,picture:p.picture,exp:Date.now()+AUTH_TTL}));}
+function decodeJwt(t){try{const b=t.split(".")[1].replace(/-/g,"+").replace(/_/g,"/");return JSON.parse(decodeURIComponent(atob(b).split("").map(c=>"%"+("00"+c.charCodeAt(0).toString(16)).slice(-2)).join("")));}catch(_){return null;}}
+function showSignedIn(){const a=getAuth();if(!a)return;$("#signOutBtn").classList.remove("hidden");$("#signedInAs").textContent=a.email||"";$("#signedInAs").classList.remove("hidden");}
+function onGoogleCredential(resp){
+  const p=decodeJwt(resp&&resp.credential);
+  if(!p||!p.email){$("#loginError").textContent="Sign-in failed. Please try again.";return;}
+  if(p.hd!==AUTH_DOMAIN&&!(p.email||"").toLowerCase().endsWith("@"+AUTH_DOMAIN)){
+    $("#loginError").textContent=`Use your @${AUTH_DOMAIN} account.`;
+    try{google.accounts.id.disableAutoSelect();}catch(_){}return;
+  }
+  setAuth(p);$("#loginGate").classList.add("hidden");showSignedIn();routeFromHash();
+}
+async function initAuth(){
+  // Google Sign-In only runs over https on a registered origin (the tunnel / a
+  // domain). On plain http (the bare IP, or localhost) it can't init, so don't
+  // lock the tool there - go straight in. Login is enforced once served over
+  // https. A real domain makes it universal.
+  if(location.protocol!=="https:"){routeFromHash();return;}
+  if(getAuth()){showSignedIn();routeFromHash();return;}
+  $("#loginGate").classList.remove("hidden");
+  try{
+    await loadScriptOnce("https://accounts.google.com/gsi/client");
+    google.accounts.id.initialize({client_id:GOOGLE_CLIENT_ID,callback:onGoogleCredential,hd:AUTH_DOMAIN,auto_select:true});
+    google.accounts.id.renderButton($("#googleBtn"),{theme:"filled_blue",size:"large",text:"signin_with",shape:"pill",width:260});
+    google.accounts.id.prompt();
+  }catch(e){$("#loginError").textContent="Could not load Google Sign-In. Check your connection and that you are on the https URL.";}
+}
+function signOut(){localStorage.removeItem(AUTH_KEY);try{google.accounts.id.disableAutoSelect();}catch(_){}location.reload();}
+$("#signOutBtn").addEventListener("click",signOut);
+initAuth();
 </script>
 </body>
 </html>
