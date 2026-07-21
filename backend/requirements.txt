@@ -13,3 +13,7 @@ playwright
 # Optional at runtime: serve.py degrades to a clear 503 on /projects if this
 # isn't installed or DATABASE_URL isn't set, instead of crashing on startup.
 psycopg2-binary
+
+# Realtime collaboration relay (realtime.py): per-project presence + issue focus
+# + cursors over WebSockets. Runs as its own service (copymatch-rt).
+websockets

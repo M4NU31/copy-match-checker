@@ -1,0 +1,25 @@
+# Copy Match Checker realtime relay (realtime.py) — systemd unit.
+# Install to /etc/systemd/system/copymatch-rt.service, then:
+#   sudo systemctl daemon-reload && sudo systemctl enable --now copymatch-rt
+# Logs: journalctl -u copymatch-rt -f
+[Unit]
+Description=Copy Match Checker realtime relay (WebSocket presence/cursors)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=copymatch
+Group=copymatch
+WorkingDirectory=/opt/copymatch/backend
+ExecStart=/opt/copymatch/.venv/bin/python /opt/copymatch/backend/realtime.py
+Restart=on-failure
+RestartSec=3
+Environment=HOME=/opt/copymatch
+Environment=RT_PORT=5501
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

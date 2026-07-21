@@ -167,6 +167,10 @@ select{appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='h
 .icon-btn{display:inline-flex; align-items:center; justify-content:center; padding:7px; border:none; background:transparent; color:var(--text-2); cursor:pointer; border-radius:7px; transition:color .18s, background .18s;}
 .icon-btn:hover{color:var(--text); background:var(--card-2);}
 .icon-btn .ico{width:17px; height:17px;}
+.presence{display:inline-flex; align-items:center;}
+.presence .peer{display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:50%; border:2px solid var(--border-2); overflow:hidden; margin-left:-7px; background:var(--card-2);}
+.presence .peer:first-child{margin-left:0;}
+.presence .peer img{width:100%; height:100%; object-fit:cover;}
 .btn-ghost:hover{color:var(--text); border-color:var(--border-2);}
 .run-note{margin-top:9px; text-align:center; min-height:16px;}
 
@@ -416,6 +420,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
         <svg class="ico ico-sm" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
         Reset
       </button>
+      <div class="presence hidden" id="presence" title="People viewing this project"></div>
     </div>
 
   <!-- ============ INPUTS ============ -->
@@ -542,7 +547,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10ab · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10ac · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -1380,7 +1385,7 @@ function renderTable(filter){
   rows=rows.map((i,idx)=>({i,idx,done:state.done.has(issueId(i))})).sort((a,b)=>(a.done-b.done)||(a.idx-b.idx));
   if(!rows.length){body.innerHTML=`<tr><td colspan="7" class="no-rows">✓ No issues in this category.</td></tr>`;$("#rowCount").textContent="0 issues";return;}
   const canLocate=!!state.docKind;
-  body.innerHTML=rows.map(({i,done})=>{const id=issueId(i);return `<tr class="${done?'done':''}">
+  body.innerHTML=rows.map(({i,done})=>{const id=issueId(i);return `<tr class="${done?'done':''}" data-issue-id="${esc(id)}">
     <td>${esc(i.section)}</td>
     <td class="view-cell">${canLocate?`<button class="locate-btn" data-loc="${esc(id)}" title="Preview in the document"><svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>`:""}</td>
     <td><span class="type-pill">${esc(i.type)}</span></td>
@@ -1402,6 +1407,7 @@ function renderTable(filter){
   }));
   const open=rows.filter(r=>!r.done).length;
   $("#rowCount").textContent=`${rows.length} row${rows.length===1?"":"s"} · ${open} open`;
+  paintIssueOutlines();  // re-apply teammates' issue outlines after re-render
 }
 /* ---------------- locate in document ---------------- */
 function openLocate(sub){$("#locateSub").textContent=sub||"";$("#locateModal").classList.remove("hidden");}
@@ -1712,6 +1718,7 @@ async function loadProject(id){
     toast("Could not load project: "+(e.message||e));
   }
   loadRuns();
+  rtConnect(id);
 }
 
 /* ---------------- revision history (per-run version trail) ----------------
@@ -1841,7 +1848,52 @@ async function toggleRunDetail(row,runId){
 $("#historyTrigger").addEventListener("click",()=>{$("#historyModal").classList.remove("hidden");renderHistoryBody();});
 $("#closeHistory").addEventListener("click",()=>$("#historyModal").classList.add("hidden"));
 $("#historyModal").addEventListener("click",e=>{if(e.target.id==="historyModal")$("#historyModal").classList.add("hidden");});
-function showDashboard(){$("#dashboardView").classList.remove("hidden");$("#projectView").classList.add("hidden");loadProjects();}
+/* ---------------- Realtime collaboration (Phase 1: presence + issue focus) ----
+   Per-project multiplayer over the WebSocket relay (realtime.py, nginx /ws). Shows
+   who else is viewing the project (avatars) and outlines an issue in a teammate's
+   color while they hover it. Runs only when signed in over https. Cursors are a
+   planned Phase 2 (the relay already rebroadcasts any message type). See CLAUDE.md. */
+let _rt=null,_rtSelfId=null,_rtPeers={},_rtLastIssue=null;
+const _rtIssueFocus={};  // userId -> {issueId, color}
+function userColor(seed){let h=0;for(let i=0;i<seed.length;i++)h=(h*31+seed.charCodeAt(i))>>>0;return `hsl(${h%360} 68% 56%)`;}
+function rtSelf(){const a=getAuth();if(!a)return null;return {id:a.email,name:a.name||a.email,email:a.email,avatar:a.picture||"",color:userColor(a.email||"x")};}
+function rtConnect(projectId){
+  rtDisconnect();
+  const self=rtSelf();if(!self||location.protocol!=="https:")return;  // only when signed in over https
+  _rtSelfId=self.id;
+  try{
+    const ws=new WebSocket(`wss://${location.host}/ws`);_rt=ws;
+    ws.onopen=()=>ws.send(JSON.stringify({type:"hello",project:String(projectId),user:self}));
+    ws.onmessage=(e)=>{let m;try{m=JSON.parse(e.data);}catch(_){return;}rtHandle(m);};
+    ws.onclose=()=>{if(_rt===ws){_rt=null;_rtPeers={};clearRemoteIssueOutlines();renderPresence();}};
+    ws.onerror=()=>{};
+  }catch(_){}
+}
+function rtDisconnect(){const w=_rt;_rt=null;_rtPeers={};clearRemoteIssueOutlines();renderPresence();if(w){try{w.close();}catch(_){}}}
+function rtSend(o){if(_rt&&_rt.readyState===1){try{_rt.send(JSON.stringify(o));}catch(_){}}}
+function rtHandle(m){
+  if(m.type==="roster"){(m.users||[]).forEach(u=>{if(u&&u.id&&u.id!==_rtSelfId)_rtPeers[u.id]=u;});renderPresence();}
+  else if(m.type==="join"){if(m.user&&m.user.id&&m.user.id!==_rtSelfId){_rtPeers[m.user.id]=m.user;renderPresence();}}
+  else if(m.type==="leave"){if(m.user&&m.user.id){delete _rtPeers[m.user.id];clearRemoteIssueOutlines(m.user.id);renderPresence();}}
+  else if(m.type==="issue"){if(m.user&&m.user.id!==_rtSelfId)applyRemoteIssue(m.user,m.issueId,m.active);}
+}
+function renderPresence(){
+  const el=$("#presence");if(!el)return;
+  const peers=Object.values(_rtPeers);
+  el.innerHTML=peers.map(u=>`<span class="peer" title="${esc(u.name||u.email||"")}" style="border-color:${esc(u.color||"var(--border-2)")}">${u.avatar?`<img src="${esc(u.avatar)}" alt="" onerror="this.remove()">`:""}</span>`).join("");
+  el.classList.toggle("hidden",!peers.length);
+}
+function applyRemoteIssue(user,issueId,active){delete _rtIssueFocus[user.id];if(active&&issueId)_rtIssueFocus[user.id]={issueId,color:user.color};paintIssueOutlines();}
+function clearRemoteIssueOutlines(userId){if(userId)delete _rtIssueFocus[userId];else Object.keys(_rtIssueFocus).forEach(k=>delete _rtIssueFocus[k]);paintIssueOutlines();}
+function paintIssueOutlines(){
+  $$("#issuesBody tr[data-issue-id]").forEach(tr=>{tr.style.outline="";tr.style.outlineOffset="";});
+  Object.values(_rtIssueFocus).forEach(({issueId,color})=>{const tr=$(`#issuesBody tr[data-issue-id="${rtCssEscape(issueId)}"]`);if(tr){tr.style.outline=`2px solid ${color}`;tr.style.outlineOffset="-2px";}});
+}
+function rtCssEscape(s){return (window.CSS&&CSS.escape)?CSS.escape(String(s)):String(s).replace(/["\\\]]/g,"\\$&");}
+$("#issuesBody").addEventListener("mouseover",e=>{const tr=e.target.closest&&e.target.closest("tr[data-issue-id]");if(!tr)return;const id=tr.getAttribute("data-issue-id");if(id&&id!==_rtLastIssue){_rtLastIssue=id;rtSend({type:"issue",issueId:id,active:true});}});
+$("#issuesBody").addEventListener("mouseleave",()=>{if(_rtLastIssue){rtSend({type:"issue",issueId:_rtLastIssue,active:false});_rtLastIssue=null;}});
+
+function showDashboard(){rtDisconnect();$("#dashboardView").classList.remove("hidden");$("#projectView").classList.add("hidden");loadProjects();}
 function showProjectView(id){$("#dashboardView").classList.add("hidden");$("#projectView").classList.remove("hidden");loadProject(id);}
 function routeFromHash(){
   const m=location.hash.match(/^#\/p\/(\d+)/);
