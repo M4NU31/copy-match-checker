@@ -543,7 +543,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10z · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10aa · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -977,21 +977,23 @@ const GOOGLE_APP_ID="816397776737"; // Cloud project number (the client-id prefi
 const GOOGLE_SCOPES="openid email profile https://www.googleapis.com/auth/drive.file";
 const DOCX_MIME="application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const GDOC_MIME="application/vnd.google-apps.document";
+const GTOKEN_KEY="cmc_gtoken";
 let _gPickerReady=false,_tokenClient=null,_gToken=null,_gTokenExp=0,_tokenResolve=null,_tokenReject=null;
+try{const _t=JSON.parse(sessionStorage.getItem(GTOKEN_KEY)||"null");if(_t&&_t.exp>Date.now()){_gToken=_t.token;_gTokenExp=_t.exp;}}catch(_){}  // survive page reloads
 
 function loadScriptOnce(src){return new Promise((res,rej)=>{if(document.querySelector(`script[src="${src}"]`))return res();const s=document.createElement("script");s.src=src;s.async=true;s.onload=()=>res();s.onerror=()=>rej(new Error("Failed to load "+src));document.head.appendChild(s);});}
 async function ensureTokenClient(){
   await loadScriptOnce("https://accounts.google.com/gsi/client");
   if(!_tokenClient)_tokenClient=google.accounts.oauth2.initTokenClient({client_id:GOOGLE_CLIENT_ID,scope:GOOGLE_SCOPES,callback:(r)=>{
-    if(r&&r.access_token){_gToken=r.access_token;_gTokenExp=Date.now()+((+r.expires_in||3600)-60)*1000;_tokenResolve&&_tokenResolve(r.access_token);}
+    if(r&&r.access_token){_gToken=r.access_token;_gTokenExp=Date.now()+((+r.expires_in||3600)-60)*1000;try{sessionStorage.setItem(GTOKEN_KEY,JSON.stringify({token:_gToken,exp:_gTokenExp}));}catch(_){}_tokenResolve&&_tokenResolve(r.access_token);}
     else _tokenReject&&_tokenReject(new Error((r&&r.error)||"auth_failed"));
     _tokenResolve=_tokenReject=null;
   }});
 }
-function requestToken(){return new Promise((res,rej)=>{_tokenResolve=res;_tokenReject=rej;_tokenClient.requestAccessToken({prompt:""});});}
-// Returns a valid access token — the cached one, or a silent refresh when expired
-// (no popup, since the grant already exists from sign-in).
-async function getToken(){await ensureTokenClient();if(_gToken&&Date.now()<_gTokenExp)return _gToken;return requestToken();}
+// interactive:true shows the account/consent popup (used only for sign-in). false
+// is a silent refresh (prompt:none) that reuses the existing grant — no popup.
+function requestToken(interactive){return new Promise((res,rej)=>{_tokenResolve=res;_tokenReject=rej;_tokenClient.requestAccessToken({prompt:interactive?"":"none"});});}
+async function getToken(interactive){await ensureTokenClient();if(!interactive&&_gToken&&Date.now()<_gTokenExp)return _gToken;return requestToken(interactive);}
 async function ensurePicker(){await loadScriptOnce("https://apis.google.com/js/api.js");if(!_gPickerReady){await new Promise(res=>gapi.load("picker",{callback:res}));_gPickerReady=true;}}
 function showDrivePicker(token){
   const mimes=`application/pdf,${DOCX_MIME},${GDOC_MIME}`;
@@ -1871,10 +1873,10 @@ function setAvatar(a){
 async function doSignIn(){
   $("#loginError").textContent="";
   try{
-    const token=await getToken();  // popup once; grants identity + Drive together
+    const token=await getToken(true);  // the only interactive prompt — grants identity + Drive together
     const u=await(await fetch("https://www.googleapis.com/oauth2/v3/userinfo",{headers:{Authorization:"Bearer "+token}})).json();
     if(!u||!u.email){$("#loginError").textContent="Sign-in failed. Please try again.";return;}
-    if(u.hd!==AUTH_DOMAIN&&!(u.email||"").toLowerCase().endsWith("@"+AUTH_DOMAIN)){$("#loginError").textContent=`Use your @${AUTH_DOMAIN} account.`;_gToken=null;_gTokenExp=0;return;}
+    if(u.hd!==AUTH_DOMAIN&&!(u.email||"").toLowerCase().endsWith("@"+AUTH_DOMAIN)){$("#loginError").textContent=`Use your @${AUTH_DOMAIN} account.`;_gToken=null;_gTokenExp=0;try{sessionStorage.removeItem(GTOKEN_KEY);}catch(_){}return;}
     setAuth({email:u.email,name:u.name,picture:u.picture});
     $("#loginGate").classList.add("hidden");showSignedIn();routeFromHash();
   }catch(e){$("#loginError").textContent="Could not sign in. Make sure you are on the https URL.";}
@@ -1889,7 +1891,7 @@ async function initAuth(){
   $("#loginGate").classList.remove("hidden");
   ensureTokenClient().catch(()=>{});  // preload GIS so the first click is instant
 }
-function signOut(){localStorage.removeItem(AUTH_KEY);location.reload();}
+function signOut(){localStorage.removeItem(AUTH_KEY);try{sessionStorage.removeItem(GTOKEN_KEY);}catch(_){}_gToken=null;location.reload();}
 $("#signOutBtn").addEventListener("click",signOut);
 $("#ssoBtn").addEventListener("click",doSignIn);
 initAuth();
