@@ -303,7 +303,9 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .history-trigger .count{background:var(--pink-dim); color:var(--pink-2); border-radius:20px; padding:1px 8px; font-size:11.5px;}
 .hist-box{width:100%; max-width:900px; max-height:min(88vh,820px); display:flex; flex-direction:column; padding:0; overflow:hidden;}
 .hist-head{display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:22px 24px 16px; border-bottom:1px solid var(--border);}
-.hist-head h3{margin:0 0 3px;} .hist-head p{margin:0; color:var(--text-2); font-size:12.5px;}
+.hist-head h3{margin:0 0 3px; display:flex; align-items:center; gap:9px; font-size:19px;}
+.hist-head h3 .ico{width:19px; height:19px; color:var(--pink);}
+.hist-head p{margin:0; color:var(--text-2); font-size:12.5px;}
 .hist-body{overflow-y:auto; padding:20px 24px 24px;}
 .spark-wrap{background:var(--input); border:1px solid var(--border); border-radius:12px; padding:16px 18px 10px; margin-bottom:20px;}
 .spark-top{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:2px;}
@@ -323,6 +325,13 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
   box-shadow:0 8px 20px rgba(0,0,0,.4); opacity:0; transition:opacity .1s; transform:translate(-50%,-100%);}
 .spark-tooltip strong{color:var(--text); font-variant-numeric:tabular-nums;}
 .spark-hit{fill:transparent;}
+.run-head{display:flex; align-items:center; gap:12px; padding:0 14px 8px; flex-wrap:wrap;}
+.run-head > div{flex:none; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--muted);}
+.run-head .run-when{width:150px;}
+.run-head .run-score-col{width:140px;}
+.run-head .run-doc{flex:1; min-width:140px;}
+.run-head .run-view-col{width:86px; text-align:center;}
+.run-head .run-by{width:110px;}
 .run-list{display:flex; flex-direction:column; gap:8px;}
 .run-row{border:1px solid var(--border); border-radius:11px; background:var(--input); overflow:hidden;}
 .run-row.current{border-color:rgba(255,20,73,.4); background:var(--pink-dim);}
@@ -330,23 +339,52 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .run-when{flex:none; width:150px;}
 .run-when .d{font-weight:600; color:var(--text); font-size:13px;}
 .run-when .t{color:var(--muted); font-size:11.5px;}
-.run-score{flex:none; font-size:12.5px; font-weight:800; padding:3px 10px; border-radius:20px; font-variant-numeric:tabular-nums;}
+.run-score-col{flex:none; width:140px; display:flex; flex-direction:column; gap:3px;}
+.run-score{align-self:flex-start; font-size:12.5px; font-weight:800; padding:3px 10px; border-radius:20px; font-variant-numeric:tabular-nums;}
 .run-score.good{color:var(--green); background:rgba(47,214,166,.12); border:1px solid rgba(47,214,166,.35);}
 .run-score.mid{color:var(--amber); background:rgba(245,165,36,.12); border:1px solid rgba(245,165,36,.35);}
 .run-score.bad{color:var(--pink-2); background:var(--pink-dim); border:1px solid rgba(255,20,73,.35);}
 .run-score.na{color:var(--muted); background:var(--card-2); border:1px solid var(--border-2);}
-.run-issues{flex:none; color:var(--text-2); font-size:12px; width:96px;}
-.run-doc{flex:1; color:var(--text-2); font-size:12px; min-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.run-issues{color:var(--text-2); font-size:11px;}
+.run-doc-btn{flex:1; min-width:140px; display:flex; align-items:center; gap:6px; background:none; border:none;
+  color:var(--text-2); font-size:12px; font-family:inherit; text-align:left; cursor:pointer; padding:0;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.run-doc-btn:hover{color:var(--pink-2); text-decoration:underline;}
+.run-doc-btn .ico{width:13px; height:13px; flex:none; color:var(--pink);}
+.run-view-col{flex:none; width:86px; text-align:center;}
+.run-view-btn{background:transparent; border:none; color:var(--pink); cursor:pointer; padding:4px; display:inline-flex;}
+.run-view-btn:hover{color:var(--pink-2);}
+.run-view-btn .ico{width:17px; height:17px;}
 .run-by{flex:none; width:110px; color:var(--text-2); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-.run-delta{flex:none; font-size:12px; font-weight:600; font-variant-numeric:tabular-nums; width:130px;}
+.run-delta{font-size:11px; font-weight:600; font-variant-numeric:tabular-nums;}
 .run-delta.up{color:var(--green);} .run-delta.down{color:var(--pink-2);} .run-delta.flat{color:var(--muted);}
-.run-dl-btn{flex:none; background:transparent; border:none; color:#FF1449; cursor:pointer; padding:4px; display:inline-flex;}
-.run-dl-btn:hover{color:var(--pink-2);}
-.run-dl-btn .ico{width:16px; height:16px;}
 .run-current-tag{flex:none; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.5px;
   color:var(--pink-2); background:var(--pink-dim); border:1px solid rgba(255,20,73,.3); border-radius:6px; padding:3px 7px;}
 .hist-empty{color:var(--muted); text-align:center; padding:30px 10px;}
-@media (max-width:640px){.run-when{width:104px;} .run-issues,.run-doc,.run-by{display:none;}}
+@media (max-width:640px){
+  .run-when{width:104px;}
+  .run-doc-btn,.run-by{display:none;}
+  .run-head .run-doc,.run-head .run-by{display:none;}
+}
+
+/* read-only revision snapshot viewer */
+.rev-box{width:100%; max-width:1000px; max-height:min(88vh,820px); display:flex; flex-direction:column; padding:0; overflow:hidden;}
+.rev-head{display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:22px 24px 16px; border-bottom:1px solid var(--border);}
+.rev-head h3{margin:0 0 3px; display:flex; align-items:center; gap:9px; font-size:19px;}
+.rev-head h3 .ico{width:19px; height:19px; color:var(--pink);}
+.rev-head p{margin:0; color:var(--text-2); font-size:12.5px;}
+.readonly-banner{display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12px; padding:14px 24px 0;}
+.readonly-banner .ico{width:14px; height:14px;}
+.rev-stats{display:flex; gap:10px; padding:14px 24px; flex-wrap:wrap;}
+.rev-stat{background:var(--input); border:1px solid var(--border); border-radius:10px; padding:9px 15px; text-align:center; min-width:84px;}
+.rev-stat b{display:block; font-size:18px; font-weight:800; color:var(--pink); font-variant-numeric:tabular-nums;}
+.rev-stat span{font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em;}
+.rev-table-wrap{overflow:auto; padding:0 24px 24px; flex:1;}
+.rev-table{width:100%; border-collapse:collapse; font-size:12.5px;}
+.rev-table th{text-align:left; color:var(--muted); font-weight:600; font-size:10.5px; text-transform:uppercase;
+  letter-spacing:.4px; padding:8px; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--card);}
+.rev-table td{padding:10px 8px; border-bottom:1px solid var(--border); vertical-align:top; color:var(--text-2);}
+.rev-table tr:last-child td{border-bottom:none;}
 </style>
 </head>
 <body>
@@ -547,7 +585,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10au · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10av · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -585,6 +623,27 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
       <button class="x" id="closeHistory"><svg class="ico" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="hist-body" id="historyBody"></div>
+  </div>
+</div>
+
+<!-- read-only revision snapshot viewer -->
+<div class="modal hidden" id="revisionModal">
+  <div class="modal-box rev-box">
+    <div class="rev-head">
+      <div>
+        <h3><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Revision snapshot</h3>
+        <p id="revSub"></p>
+      </div>
+      <button class="x" id="closeRevision"><svg class="ico" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="readonly-banner"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Read-only — this is a snapshot from that run, nothing here can be edited</div>
+    <div class="rev-stats" id="revStats"></div>
+    <div class="rev-table-wrap">
+      <table class="rev-table">
+        <thead><tr><th>Section</th><th>Issue Type</th><th>Approved Copy</th><th>Current Page Copy</th><th>Observations</th></tr></thead>
+        <tbody id="revBody"></tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -1849,12 +1908,16 @@ function buildSparkline(container,runsChrono){
       const i=+hit.dataset.i,p=pts[i],r=runsChrono[i];
       cross.setAttribute("x1",p[0]);cross.setAttribute("x2",p[0]);cross.style.opacity=1;
       tip.style.opacity=1;tip.style.left=(p[0]/W*100)+"%";tip.style.top=(p[1]/H*100)+"%";
-      tip.innerHTML=`<strong>${r.score??"—"}%</strong> · ${r.issues_total} issue${r.issues_total===1?"":"s"}<br>${new Date(r.ran_at).toLocaleString()}`;
+      tip.innerHTML=`<strong>${r.score??"—"}%</strong> · ${r.issues_total} issue${r.issues_total===1?"":"s"}<br>${fmtDate(r.ran_at)}, ${new Date(r.ran_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`;
     });
     hit.addEventListener("mouseleave",()=>{cross.style.opacity=0;tip.style.opacity=0;});
   });
 }
-function fmtDate(iso){return iso?new Date(iso).toLocaleDateString(undefined,{day:"2-digit",month:"short",year:"numeric"}):"—";}
+// Always English regardless of the browser/OS locale — this section is
+// English-only by design, and toLocaleDateString(undefined,...) silently
+// follows whatever locale the machine is set to (e.g. "20 jul. 2026").
+const MONTHS_EN=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function fmtDate(iso){if(!iso)return "—";const d=new Date(iso);return `${String(d.getDate()).padStart(2,"0")} ${MONTHS_EN[d.getMonth()]} ${d.getFullYear()}`;}
 async function renderHistoryBody(){
   const body=$("#historyBody");
   $("#historySub").textContent=`${state.meta&&state.meta.client||"—"} — ${state.runs.length} run${state.runs.length===1?"":"s"} recorded`;
@@ -1862,7 +1925,7 @@ async function renderHistoryBody(){
   const chrono=[...state.runs].reverse();  // oldest -> newest, for the chart
   body.innerHTML=`
     <div class="spark-wrap">
-      <div class="spark-top"><span class="lbl">Match score en el tiempo</span>
+      <div class="spark-top"><span class="lbl">Match score over time</span>
         <span class="now">${state.runs[0].score??"—"}<span class="unit">% · last run</span></span></div>
       <div style="position:relative;">
         <svg class="spark-svg" viewBox="0 0 640 120" preserveAspectRatio="none">
@@ -1879,6 +1942,13 @@ async function renderHistoryBody(){
       </div>
       <svg class="spark-axis" width="100%" height="16" style="display:block;"><g id="sparkAxis"></g></svg>
     </div>
+    <div class="run-head">
+      <div class="run-when">Date &amp; time</div>
+      <div class="run-score-col">Match Score</div>
+      <div class="run-doc">Document</div>
+      <div class="run-view-col">View revision</div>
+      <div class="run-by">User</div>
+    </div>
     <div class="run-list" id="runList"></div>`;
   buildSparkline(body,chrono);
   const list=$("#runList");
@@ -1890,36 +1960,64 @@ async function renderHistoryBody(){
     return `<div class="run-row${i===0?' current':''}" data-run="${r.id}">
       <div class="run-summary">
         <div class="run-when"><div class="d">${fmtDate(r.ran_at)}</div><div class="t">${new Date(r.ran_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div></div>
-        <div class="run-score ${runScoreClass(r.score)}">${r.score??"—"}%</div>
-        <div class="run-issues">${r.issues_total} issue${r.issues_total===1?"":"s"}</div>
-        <div class="run-doc">${r.doc_filename?esc(r.doc_filename):'<span class="muted">No document</span>'}</div>
+        <div class="run-score-col">
+          <div class="run-score ${runScoreClass(r.score)}">${r.score??"—"}%</div>
+          <div class="run-issues">${r.issues_total} issue${r.issues_total===1?"":"s"}</div>
+          <div class="run-delta ${deltaCls}">${deltaTxt}</div>
+        </div>
+        ${r.doc_filename
+          ?`<button class="run-doc-btn" data-doc="${r.id}" title="Download ${esc(r.doc_filename)}"><svg class="ico" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg><span>${esc(r.doc_filename)}</span></button>`
+          :`<div class="run-doc-btn" style="color:var(--muted); cursor:default;">No document</div>`}
+        <div class="run-view-col"><button class="run-view-btn" data-view="${r.id}" title="View this revision (read-only)"><svg class="ico" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
         <div class="run-by" title="${r.ran_by?esc(r.ran_by):'—'}">${r.ran_by?esc(r.ran_by):'<span class="muted">—</span>'}</div>
-        <div class="run-delta ${deltaCls}">${deltaTxt}</div>
         ${i===0?'<span class="run-current-tag">Actual</span>':''}
-        <button class="run-dl-btn" data-dl="${r.id}" title="Download this run's report"><svg class="ico" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
       </div>
     </div>`;
   }).join("");
-  list.querySelectorAll("[data-dl]").forEach(b=>b.addEventListener("click",()=>downloadRunReport(+b.dataset.dl,state.runs.find(r=>r.id===+b.dataset.dl))));
+  list.querySelectorAll("[data-doc]").forEach(b=>b.addEventListener("click",()=>
+    window.open(`${API_BASE}/projects/${state.projectId}/runs/${b.dataset.doc}/document`,"_blank","noopener")));
+  list.querySelectorAll("[data-view]").forEach(b=>b.addEventListener("click",()=>
+    openRevisionView(+b.dataset.view,state.runs.find(r=>r.id===+b.dataset.view))));
 }
-// Downloads a CSV of that run's issues (the "what was worked on" detail) and,
-// if the run has a saved approved-copy document, also opens it in a new tab —
-// replaces the old inline expandable table, which was too much content to show
-// directly in the history popup.
-async function downloadRunReport(runId,r){
+function computeRunStats(issues){
+  const I=(issues||[]).filter(i=>i.type!=="Observation");
+  return {total:I.length,
+    missing:I.filter(i=>i.type==="Missing Copy").length,
+    mismatch:I.filter(i=>i.type==="Copy Mismatch").length,
+    extra:I.filter(i=>i.type==="Extra Section").length,
+    cta:I.filter(i=>i.type==="CTA Issue"||i.type==="Link Review").length};
+}
+// Read-only snapshot of a past run's issues table — same columns/format as the
+// live table, but with no Status column (per-issue status isn't saved with a
+// run) and no editing controls, since this is history, not the live project.
+async function openRevisionView(runId,r){
   try{
     const run=state.runDetails[runId]||(state.runDetails[runId]=await apiGet(`/projects/${state.projectId}/runs/${runId}`));
-    if(run.doc_filename)window.open(`${API_BASE}/projects/${state.projectId}/runs/${runId}/document`,"_blank","noopener");
-    const issues=(run.issues||[]).filter(i=>i.type!=="Observation");
-    const header=["Section","Issue Type","Approved Copy","Current Page Copy","Observations"];
-    const rows=issues.map(i=>[i.section,i.type,i.approved,i.current,i.fix]);
-    const csv=[header,...rows].map(row=>row.map(c=>`"${String(c??"").replace(/"/g,'""')}"`).join(",")).join("\r\n");
-    const blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8;"});
-    const a=document.createElement("a");a.href=URL.createObjectURL(blob);
-    a.download=`${(state.meta.client||"copy").replace(/\s+/g,"_")}_run_${fmtDate(run.ran_at||(r&&r.ran_at)).replace(/\s+/g,"-")}.csv`;a.click();
-    toast("Report downloaded");
-  }catch(e){toast("Could not load this run: "+(e.message||e));}
+    const ranAt=run.ran_at||(r&&r.ran_at);
+    $("#revSub").textContent=`${fmtDate(ranAt)}, ${new Date(ranAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`+
+      (run.ran_by?` · By ${run.ran_by}`:"");
+    const stats=computeRunStats(run.issues);
+    $("#revStats").innerHTML=`
+      <div class="rev-stat"><b>${stats.total}</b><span>Total Issues</span></div>
+      <div class="rev-stat"><b>${stats.missing}</b><span>Missing Copy</span></div>
+      <div class="rev-stat"><b>${stats.mismatch}</b><span>Mismatch</span></div>
+      <div class="rev-stat"><b>${stats.extra}</b><span>Extra Copy</span></div>
+      <div class="rev-stat"><b>${stats.cta}</b><span>CTA / Link</span></div>
+      <div class="rev-stat"><b>${run.score??"—"}%</b><span>Match Score</span></div>`;
+    const rows=(run.issues||[]).filter(i=>i.type!=="Observation");
+    $("#revBody").innerHTML=rows.length?rows.map((i,idx)=>`<tr>
+      <td>${esc(i.section)}</td>
+      <td><span class="type-pill">${esc(i.type)}</span></td>
+      <td class="cell-approved">${i.approved==="—"?'<span class="empty-dash">—</span>':esc(i.approved)}</td>
+      <td class="cell-current">${i.current==="—"?'<span class="empty-dash">—</span>':esc(i.current)}</td>
+      <td class="obs-cell">${i.fix?`<button class="obs-btn" data-i="${idx}" title="View observation"><svg class="ico" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>`:'<span class="empty-dash">—</span>'}</td>
+    </tr>`).join(""):`<tr><td colspan="5" class="no-rows">No issues in this revision.</td></tr>`;
+    $("#revBody").querySelectorAll(".obs-btn").forEach(b=>b.addEventListener("click",()=>openObs(rows[+b.dataset.i])));
+    $("#revisionModal").classList.remove("hidden");
+  }catch(e){toast("Could not load this revision: "+(e.message||e));}
 }
+$("#closeRevision")&&$("#closeRevision").addEventListener("click",()=>$("#revisionModal").classList.add("hidden"));
+$("#revisionModal")&&$("#revisionModal").addEventListener("click",e=>{if(e.target.id==="revisionModal")$("#revisionModal").classList.add("hidden");});
 $("#historyTrigger").addEventListener("click",()=>{$("#historyModal").classList.remove("hidden");renderHistoryBody();});
 $("#closeHistory").addEventListener("click",()=>$("#historyModal").classList.add("hidden"));
 $("#historyModal").addEventListener("click",e=>{if(e.target.id==="historyModal")$("#historyModal").classList.add("hidden");});
