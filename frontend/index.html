@@ -556,7 +556,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10ai · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10al · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -778,7 +778,12 @@ async function parseDocxStructured(buf){
     else if(tot&&green/tot>0.55)kind="alternate";
     blocks.push({text,kind});
   });
-  return blocks;
+  // hasSeoTable: whether the SEO/Yoast box was actually built as a real Word
+  // table in this .docx. A doc exported from Google Docs (or any source that
+  // never used an actual table for that box) won't have one even though the
+  // parse itself succeeds — the caller uses this to decide whether the
+  // pattern-only fallback (regionSEO) still needs to run.
+  return {blocks,hasSeoTable:scaffoldParas.size>0};
 }
 async function parseDocx(buf){const r=await mammoth.extractRawText({arrayBuffer:buf});return r.value||"";}
 // Word comments live in word/comments.xml (text/author/date); the copy each one
@@ -917,9 +922,11 @@ function tocEntryLike(t){
 // Build the final approved-copy blocks: drop scaffolding & pink instructions;
 // turn "[Label] (note)" into a CTA block; attach green alternates to their
 // preceding normal block (or keep standalone).
-// regionSEO: when true (PDF / no table structure) we also swallow the value
-// lines that follow an SEO-box marker. For DOCX the table is detected directly,
-// so we leave it off to avoid eating a real heading next to the box.
+// regionSEO: when true (PDF, or a DOCX where no real SEO table was found) we
+// also swallow the value lines that follow an SEO-box marker. When a DOCX's
+// SEO box IS a real Word table, we leave it off to avoid eating a real
+// heading next to the box — that case is already handled directly by
+// parseDocxStructured's table-based scaffold detection.
 function buildApprovedBlocks(raw,regionSEO){
   const out=[];let seoZone=0,inIndex=false,inNav=false;
   raw.forEach(b=>{
@@ -962,12 +969,16 @@ async function handleFile(file){
       raw:splitBlocks(reflowed).map(t=>({text:t,kind:"normal"})),regionSEO:true,comments:[]};
   }
   if(ext==="docx"){
-    let raw,structured=true;
-    try{raw=await parseDocxStructured(buf);}                       // color + table aware
+    let raw,structured=true,hasSeoTable=false;
+    try{const r=await parseDocxStructured(buf);raw=r.blocks;hasSeoTable=r.hasSeoTable;}   // color + table aware
     catch(_){const text=await parseDocx(buf);raw=splitBlocks(text).map(t=>({text:t,kind:"normal"}));structured=false;}
     const rawText=raw.map(b=>b.text).join("\n");
     const comments=await parseDocxComments(buf);
-    return {rawText,structured,docKind:"docx",pdf:null,lines:[],raw,regionSEO:!structured,comments};
+    // regionSEO also turns on when parsing succeeded but no real SEO table was
+    // found (e.g. a Google Doc exported to .docx, which rarely builds that box
+    // as an actual Word table) — otherwise the SEO box's free-text values leak
+    // through as normal copy and get flagged as Missing Copy/Extra Section.
+    return {rawText,structured,docKind:"docx",pdf:null,lines:[],raw,regionSEO:!structured||!hasSeoTable,comments};
   }
   throw new Error("Unsupported file type. Use PDF or DOCX.");
 }
@@ -1061,8 +1072,17 @@ if(location.protocol==="https:"){const r=$("#driveBox");if(r){r.classList.remove
 // Shared by deterministicPageSplit's backward scan AND findEmbeddedPageSplit
 // (below), so a line like "Tab 1" is never mistaken for a real page name in
 // either place.
+// Also must include PAGE_BOX_OPEN_RE itself: some decks split the SEO box's
+// opening across two separate marker lines ("Page SEO Info" then, a couple
+// lines later, "Copy from here to propagate Yoast/Semrush") — both match
+// PAGE_BOX_OPEN_RE and each becomes its own marker in deterministicPageSplit.
+// Without this, the backward scan for the SECOND marker walks straight into
+// the FIRST marker's own "Page SEO Info" line, sees a short line with no
+// trailing punctuation, and wrongly adopts it as the page title — producing a
+// bogus "Page SEO Info" entry in the page picker for every real page.
 function isTitleNoiseLine(t){
   return /^(page goals?|goal ctas?)\s*:/i.test(t)||
+    PAGE_BOX_OPEN_RE.test(t)||
     /addsomepunch\.com/i.test(t)||
     /^\/\//.test(t)||
     /^\d{1,4}\s*(\(footer\))?$/i.test(t)||
@@ -1534,7 +1554,35 @@ function selectPage(idx,opts){
     `${state.isDocx?"":" — tip: use .docx to detect green/pink color coding"}.`,"ok");
 }
 $("#pageSelect").addEventListener("change",()=>selectPage(+$("#pageSelect").value));
+
+// Auto-select the matching approved-copy page from the Page URL, so a reviewer
+// doesn't have to manually find "Credence Defined" in the dropdown after typing
+// https://credence.ai/who-we-are/credence-defined/ — the URL's last path segment
+// is compared against each detected page's title (slugified: "Credence Defined"
+// -> "credence-defined") for an exact match, then a loose substring match as a
+// fallback (covers a title that's a shorter/longer variant of the slug).
+function slugify(s){return (s||"").toLowerCase().trim().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");}
+function guessPageIndexFromUrl(url){
+  if(!state.pages||state.pages.length<=1)return -1;
+  let path;try{path=new URL(url).pathname;}catch(_){return -1;}
+  const segments=path.split("/").filter(Boolean);
+  const lastSeg=segments[segments.length-1]||"";
+  const lastSlug=slugify(lastSeg);
+  const isHome=!segments.length||/^(home|index)$/i.test(lastSeg);
+  if(isHome){const i=state.pages.findIndex(p=>/^home(page)?$/i.test(p.title.trim()));if(i>=0)return i;}
+  if(!lastSlug)return -1;
+  const exact=state.pages.findIndex(p=>slugify(p.title)===lastSlug);
+  if(exact>=0)return exact;
+  return state.pages.findIndex(p=>{const s=slugify(p.title);return s&&(s.includes(lastSlug)||lastSlug.includes(s));});
+}
+function autoSelectPageFromUrl(){
+  const url=$("#pageUrl").value.trim();
+  if(!/^https?:\/\//i.test(url))return;
+  const idx=guessPageIndexFromUrl(url);
+  if(idx>=0&&+$("#pageSelect").value!==idx)selectPage(idx);
+}
 $("#pageUrl").addEventListener("blur",()=>{
+  autoSelectPageFromUrl();
   if($("#clientName").value.trim())return;  // never clobber a name already typed
   const url=$("#pageUrl").value.trim();
   if(!/^https?:\/\//i.test(url))return;
@@ -1558,6 +1606,7 @@ async function loadFile(file,docUrl){
     state.pages=await segmentPagesWithClaude(raw,regionSEO);
     renderPageSelect(state.pages);
     selectPage(0,{initial:true});
+    autoSelectPageFromUrl();  // Page URL may already be filled in before the doc finished loading
   }catch(err){state.approvedText="";state.approvedBlocks=[];state.pages=[];state.docFile=null;hidePageSelect();setStatus((err.message||"Could not read file")+". Use .pdf or .docx (not old .doc).","err");toast("Failed to read file");}
 }
 
