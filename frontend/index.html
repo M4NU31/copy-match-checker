@@ -108,10 +108,17 @@ select{appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='h
 @media (max-width:640px){.picker-row{flex-direction:column;}}
 /* Approved-copy flash: shown the instant a file finishes loading, then fades
    to reveal the box underneath — the green check confirms "this is loaded,
-   move on" without needing a status line. */
+   move on" without needing a status line. Outline style (dashed ring, no
+   fill) with the check drawn in the same color/weight as the ring; ring and
+   check fade in one after the other, no scale/rotate — the quietest of the
+   options reviewed. */
 .approved-flash{position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
   background:var(--input); border-radius:12px; opacity:0; pointer-events:none;}
-.approved-flash svg{width:52px; height:52px;}
+.approved-badge{width:80px; height:80px; display:flex; align-items:center; justify-content:center;}
+.approved-badge svg{width:80px; height:80px; overflow:visible;}
+.approved-ring{fill:none; stroke:#2fd6a6; stroke-width:1.2; stroke-dasharray:2.4 2.2; opacity:0; transition:opacity .5s ease;}
+.approved-check{fill:none; stroke:#2fd6a6; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; opacity:0; transition:opacity .5s ease .3s;}
+.approved-flash.show .approved-ring,.approved-flash.show .approved-check{opacity:1;}
 /* Card 1 stretches to match card 2's height when card 2 grows (e.g. the page
    picker appears) — without this the extra height just sat empty below the
    upload/drive boxes instead of the boxes themselves growing into it. */
@@ -512,7 +519,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
               <button class="x" id="clearFile" title="Remove"><svg class="ico ico-sm" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
           </div>
-          <div class="approved-flash" id="dropApproved"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#2fd6a6"/><path d="M7 12.5l3 3 7-7" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="approved-flash" id="dropApproved"><div class="approved-badge"><svg viewBox="0 0 24 24"><circle class="approved-ring" cx="12" cy="12" r="10"/><path class="approved-check" d="M7 12.3l3.2 3.2L17 8.5"/></svg></div></div>
         </div>
         <div class="dropzone picker-box drive-box hidden" id="driveBox">
           <div id="driveEmpty">
@@ -527,7 +534,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
               <button class="x" id="clearDriveFile" title="Remove"><svg class="ico ico-sm" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
           </div>
-          <div class="approved-flash" id="driveApproved"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#2fd6a6"/><path d="M7 12.5l3 3 7-7" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="approved-flash" id="driveApproved"><div class="approved-badge"><svg viewBox="0 0 24 24"><circle class="approved-ring" cx="12" cy="12" r="10"/><path class="approved-check" d="M7 12.3l3.2 3.2L17 8.5"/></svg></div></div>
         </div>
       </div>
 
@@ -620,7 +627,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10bf · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10bh · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -1730,9 +1737,11 @@ function showLoadedIn(source,file){
 // signals "this is good, move to the next step" without a status line.
 function flashApproved(sel){
   const el=$(sel);if(!el)return;
+  el.classList.remove("show");
   el.style.transition="none";el.style.opacity="1";
   requestAnimationFrame(()=>requestAnimationFrame(()=>{
-    el.style.transition="opacity 1.3s ease .5s";el.style.opacity="0";
+    el.classList.add("show");  // ring fades in, check follows shortly after
+    el.style.transition="opacity 1.3s ease .6s";el.style.opacity="0";
   }));
 }
 async function loadFile(file,docUrl,source){
