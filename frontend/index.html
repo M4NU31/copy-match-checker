@@ -58,7 +58,7 @@ body{
 /* ---------- header ---------- */
 .topbar{display:flex; justify-content:space-between; align-items:flex-start; gap:20px; margin-bottom:26px;}
 .brand{display:flex; gap:15px; align-items:center;}
-.topbar h1{margin:0; font-size:25px; letter-spacing:-.4px;}
+.topbar h1{margin:0; font-size:30px; letter-spacing:-.4px;}
 .subtitle{margin:4px 0 0; color:var(--text-2); white-space:nowrap;}
 .brand-side{display:flex; align-items:center; gap:11px;}
 
@@ -180,7 +180,7 @@ select{appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='h
 .run-note{margin-top:9px; text-align:center; min-height:16px;}
 
 /* ---------- summary ---------- */
-.section-title{display:flex; align-items:center; gap:9px; font-size:19px; font-weight:700; margin:0 0 14px;}
+.section-title{display:flex; align-items:center; gap:9px; font-size:22px; font-weight:700; margin:0 0 14px;}
 .summary{display:grid; grid-template-columns:repeat(6,1fr); gap:10px; margin-bottom:18px;}
 .stat{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:18px 12px; text-align:center;}
 .stat .num{font-size:27px; font-weight:800; line-height:1; color:#FF1449;}
@@ -290,7 +290,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .proj-empty,.proj-error,.proj-loading{color:var(--muted); text-align:center; padding:50px 20px; grid-column:1/-1;}
 .proj-error{color:var(--pink-2);}
 .proj-header{display:flex; align-items:center; gap:14px; margin-bottom:20px;}
-.proj-header h2{margin:0; font-size:19px;}
+.proj-header h2{margin:0; font-size:22px;}
 
 /* ---------- revision history modal ---------- */
 .history-trigger{
@@ -373,8 +373,8 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
   <header class="topbar">
     <div class="brand">
       <div>
-        <h1>Copy Match v0.5</h1>
-        <p class="subtitle">Compare approved copy (PDF or Word) against the content implemented on a live or staging page.</p>
+        <h1>Copy Checker</h1>
+        <p class="subtitle">Compare approved copy against the content implemented on a live or staging page.</p>
       </div>
     </div>
     <div class="brand-side">
@@ -432,7 +432,6 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
       <div class="card-head">
         <span class="num">1</span>
         <h2>Approved Copy</h2>
-        <span class="hint">PDF · DOCX</span>
       </div>
 
       <div class="field-row">
@@ -483,7 +482,6 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
       <div class="card-head">
         <span class="num">2</span>
         <h2>Page to Compare</h2>
-        <span class="hint">Staging or Live</span>
       </div>
 
       <label class="field">
@@ -508,7 +506,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
       <button class="btn btn-primary btn-lg" id="runBtn">
         <svg class="ico ico-sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        Run QA Check
+        Check
       </button>
       <div class="run-note muted small" id="runNote"></div>
     </div>
@@ -517,7 +515,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
   <!-- ============ RESULTS ============ -->
   <section id="results" class="hidden">
     <!-- summary -->
-    <h3 class="section-title">Summary</h3>
+    <h2 class="section-title">Summary</h2>
     <div class="summary" id="summaryTabs">
       <div class="stat tab-stat active" data-filter="all"><div class="num" id="sTotal">0</div><div class="lbl">Total Issues</div></div>
       <div class="stat tab-stat" data-filter="Missing Copy"><div class="num" id="sMissing">0</div><div class="lbl">Missing Copy</div></div>
@@ -532,7 +530,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
       <div class="table-wrap">
         <table>
           <colgroup><col class="col-sec"><col class="col-type"><col><col><col class="col-obs"><col class="col-done"></colgroup>
-          <thead><tr><th>Section</th><th>Issue Type</th><th>Approved Copy</th><th>Current Page Copy</th><th>Observations</th><th class="done-cell">✓</th></tr></thead>
+          <thead><tr><th>Section</th><th>Issue Type</th><th>Approved Copy</th><th>Current Page Copy</th><th>Observations</th><th class="done-cell">Status</th></tr></thead>
           <tbody id="issuesBody"></tbody>
         </table>
       </div>
@@ -549,7 +547,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10ao · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10as · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -597,7 +595,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
     <ol class="how-steps">
       <li><strong>Upload the approved copy</strong> — a PDF or Word (.docx) file.</li>
       <li><strong>Enter the page URL</strong> (staging or live).</li>
-      <li><strong>Run QA Check</strong> — the tool extracts the visible text from the page and compares it block by block.</li>
+      <li><strong>Check</strong> — the tool extracts the visible text from the page and compares it block by block.</li>
       <li><strong>Review results</strong> — a prioritized table of missing copy, mismatches, extra sections, and CTA issues.</li>
       <li><strong>Export</strong> the report as CSV or copy it to paste into a ticket.</li>
     </ol>
@@ -1373,7 +1371,7 @@ function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",
 function issueId(i){return i.type+"|"+i.section+"|"+(i.approved||"")+"|"+(i.current||"");}
 // Per-issue status (state.status: id -> status). "done"/"solved_qa" are resolved.
 const STATUS_ORDER=["not_started","in_progress","done","solved_qa"];
-const STATUS_LABELS={not_started:"Not Started",in_progress:"In Progress",done:"Done",solved_qa:"Solved on QA Tool"};
+const STATUS_LABELS={not_started:"Not Started",in_progress:"In Progress",done:"Done",solved_qa:"Done in QA Tool"};
 const STATUS_COLORS={not_started:"#e8584b",in_progress:"#e8b018",done:"#15a37a",solved_qa:"#15a37a"};
 const RESOLVED_STATUS=new Set(["done","solved_qa"]);
 function statusOf(id){return state.status.get(id)||"not_started";}
@@ -1683,7 +1681,7 @@ async function run(){
   }catch(err){
     if(err.message==="Cancelled by user."){$("#runNote").textContent="Cancelled.";toast("QA check cancelled");}
     else{$("#runNote").textContent="";toast("Check failed");alert("Could not complete the check:\n\n"+(err.message||err));}
-  }finally{state.isRunning=false;state.runCtrl=null;btn.innerHTML=`<svg class="ico ico-sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Run QA Check`;}
+  }finally{state.isRunning=false;state.runCtrl=null;btn.innerHTML=`<svg class="ico ico-sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Check`;}
 }
 async function saveProjectRun(){
   if(!state.projectId)return {ok:true};
@@ -1860,7 +1858,7 @@ function fmtDate(iso){return iso?new Date(iso).toLocaleDateString(undefined,{day
 async function renderHistoryBody(){
   const body=$("#historyBody");
   $("#historySub").textContent=`${state.meta&&state.meta.client||"—"} — ${state.runs.length} run${state.runs.length===1?"":"s"} recorded`;
-  if(!state.runs.length){body.innerHTML=`<div class="hist-empty">No runs saved for this project yet — click "Run QA Check" to start the history.</div>`;return;}
+  if(!state.runs.length){body.innerHTML=`<div class="hist-empty">No runs saved for this project yet — click "Check" to start the history.</div>`;return;}
   const chrono=[...state.runs].reverse();  // oldest -> newest, for the chart
   body.innerHTML=`
     <div class="spark-wrap">
