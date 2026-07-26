@@ -106,6 +106,10 @@ select{appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='h
 .drive-box{background:transparent; font:inherit; color:var(--text);}
 .drive-box.busy{pointer-events:none; opacity:.6;}
 @media (max-width:640px){.picker-row{flex-direction:column;}}
+/* Once a doc is loaded, whichever box ISN'T the source it came from dims to
+   gray — makes it obvious at a glance which of the two you're actually
+   using. Neither box gets this before anything is loaded. */
+.picker-box.inactive{opacity:.5; filter:grayscale(1); transition:opacity .3s ease, filter .3s ease;}
 /* Approved-copy flash: shown the instant a load attempt settles — a green
    check when the file parsed fine, a red X (via .is-error) when it didn't —
    then fades to reveal the box underneath. Outline style (dashed ring, no
@@ -634,7 +638,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10bi · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10bj · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -1657,6 +1661,7 @@ function clearApprovedDoc(){
   fileInput.value="";
   $("#dropFilled").classList.add("hidden");$("#dropEmpty").classList.remove("hidden");
   $("#driveFilled").classList.add("hidden");$("#driveEmpty").classList.remove("hidden");
+  $("#dropzone").classList.remove("inactive");$("#driveBox").classList.remove("inactive");
   hidePageSelect();setStatus("No approved copy loaded yet.");
 }
 $("#clearFile").addEventListener("click",e=>{e.stopPropagation();clearApprovedDoc();});
@@ -1731,11 +1736,13 @@ function showLoadedIn(source,file){
     $("#driveFileName").textContent=file.name;$("#driveFileMeta").textContent=meta;
     $("#driveEmpty").classList.add("hidden");$("#driveFilled").classList.remove("hidden");
     $("#dropEmpty").classList.remove("hidden");$("#dropFilled").classList.add("hidden");
+    $("#dropzone").classList.add("inactive");$("#driveBox").classList.remove("inactive");
     flashDocFlash("#driveApproved",true);
   }else{
     $("#fileName").textContent=file.name;$("#fileMeta").textContent=meta;
     $("#dropEmpty").classList.add("hidden");$("#dropFilled").classList.remove("hidden");
     $("#driveEmpty").classList.remove("hidden");$("#driveFilled").classList.add("hidden");
+    $("#driveBox").classList.add("inactive");$("#dropzone").classList.remove("inactive");
     flashDocFlash("#dropApproved",true);
   }
 }
@@ -1923,6 +1930,7 @@ function resetToolState(){
   $("#clientName").value="";$("#pageName").value="";$("#pageUrl").value="";
   fileInput.value="";$("#dropFilled").classList.add("hidden");$("#dropEmpty").classList.remove("hidden");
   $("#driveFilled").classList.add("hidden");$("#driveEmpty").classList.remove("hidden");
+  $("#dropzone").classList.remove("inactive");$("#driveBox").classList.remove("inactive");
   hidePageSelect();setStatus("No approved copy loaded yet.");$("#runNote").textContent="";
   $("#results").classList.add("hidden");
 }
