@@ -317,7 +317,12 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .spark-area{fill:url(#sparkGrad);}
 .spark-line{fill:none; stroke:var(--pink); stroke-width:2; stroke-linecap:round; stroke-linejoin:round;}
 .spark-dot{stroke:var(--card); stroke-width:2;}
-.spark-endlabel{font-size:11px; font-weight:700; fill:var(--text); font-variant-numeric:tabular-nums;}
+/* HTML, not SVG — the chart's viewBox uses preserveAspectRatio="none" so it
+   can stretch non-uniformly to fill the width, which is fine for the line/
+   area paths but visibly distorts any SVG <text> the same way (stretched
+   horizontally). Plain HTML text positioned over the chart isn't affected. */
+.spark-endlabel-html{position:absolute; transform:translate(-100%,0); font-size:11px; font-weight:700;
+  color:var(--text); font-variant-numeric:tabular-nums; white-space:nowrap; pointer-events:none;}
 .spark-axis text{font-size:10.5px; fill:var(--muted); font-family:inherit;}
 .crosshair{stroke:var(--border-2); stroke-width:1; stroke-dasharray:2 3; pointer-events:none; opacity:0;}
 .spark-tooltip{position:absolute; pointer-events:none; background:var(--card-2); border:1px solid var(--border-2);
@@ -325,55 +330,57 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
   box-shadow:0 8px 20px rgba(0,0,0,.4); opacity:0; transition:opacity .1s; transform:translate(-50%,-100%);}
 .spark-tooltip strong{color:var(--text); font-variant-numeric:tabular-nums;}
 .spark-hit{fill:transparent;}
-.run-head{display:flex; align-items:center; gap:12px; padding:0 14px 8px; flex-wrap:nowrap;}
-.run-head > div{flex:none; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--muted);}
-.run-head .run-date{width:100px;}
-.run-head .run-time{width:70px;}
-.run-head .run-score-col{width:80px;}
-.run-head .run-doc{flex:1; min-width:160px;}
-.run-head .run-view-col{width:70px; text-align:center;}
-.run-head .run-by{width:110px;}
+/* Grid (not flex) so growing popup width redistributes across EVERY column
+   proportionally, instead of dumping all the extra space into a single
+   flex:1 gap after the (usually short) document name — which left the date/
+   time/score columns looking cramped together on the left with a big dead
+   zone before Summary/User on the right. The 7th column is always reserved
+   for the "Actual" tag (empty on every other row) so it lines up consistently
+   whether or not a given row shows it. */
+.run-head,.run-summary{display:grid; grid-template-columns:1fr .7fr .9fr 2.4fr .7fr 1.1fr 74px; align-items:center; gap:16px;}
+.run-head{padding:0 14px 8px;}
+.run-head > div{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--muted);}
+.run-head .run-view-col{text-align:center;}
 .run-list{display:flex; flex-direction:column; gap:8px;}
 .run-row{border:1px solid var(--border); border-radius:11px; background:var(--input); overflow:hidden;}
 .run-row.current{border-color:rgba(255,20,73,.4); background:var(--pink-dim);}
-.run-summary{display:flex; align-items:center; gap:12px; padding:12px 14px; flex-wrap:nowrap;}
-.run-date{flex:none; width:100px; font-weight:600; color:var(--text); font-size:13px;}
-.run-time{flex:none; width:70px; color:var(--muted); font-size:12px;}
-.run-score-col{flex:none; width:80px;}
+.run-summary{padding:12px 14px;}
+.run-date{font-weight:600; color:var(--text); font-size:13px;}
+.run-time{color:var(--muted); font-size:12px;}
 .run-score{font-size:12.5px; font-weight:800; padding:3px 10px; border-radius:20px; font-variant-numeric:tabular-nums;}
 .run-score.good{color:var(--green); background:rgba(47,214,166,.12); border:1px solid rgba(47,214,166,.35);}
 .run-score.mid{color:var(--amber); background:rgba(245,165,36,.12); border:1px solid rgba(245,165,36,.35);}
 .run-score.bad{color:var(--pink-2); background:var(--pink-dim); border:1px solid rgba(255,20,73,.35);}
 .run-score.na{color:var(--muted); background:var(--card-2); border:1px solid var(--border-2);}
-.run-doc-btn{flex:1; min-width:160px; display:flex; align-items:center; gap:6px; background:none; border:none;
+.run-doc-btn{display:flex; align-items:center; gap:6px; background:none; border:none;
   color:var(--text-2); font-size:12px; font-family:inherit; text-align:left; cursor:pointer; padding:0;
-  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; width:100%;}
 .run-doc-btn:hover{color:var(--pink-2); text-decoration:underline;}
 .run-doc-btn .ico{width:13px; height:13px; flex:none; color:var(--pink);}
-.run-view-col{flex:none; width:70px; display:flex; align-items:center; justify-content:center;}
+.run-view-col{display:flex; align-items:center; justify-content:center;}
 .run-view-btn{background:transparent; border:none; color:var(--pink); cursor:pointer; padding:4px; display:inline-flex; align-items:center; justify-content:center;}
 .run-view-btn:hover{color:var(--pink-2);}
 .run-view-btn .ico{width:17px; height:17px;}
-.run-by{flex:none; width:110px; color:var(--text-2); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-.run-current-tag{flex:none; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.5px;
+.run-by{color:var(--text-2); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.run-summary > div:last-child{text-align:right;}
+.run-current-tag{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.5px;
   color:var(--pink-2); background:var(--pink-dim); border:1px solid rgba(255,20,73,.3); border-radius:6px; padding:3px 7px;}
 .hist-empty{color:var(--muted); text-align:center; padding:30px 10px;}
 @media (max-width:640px){
-  .run-date{width:76px;} .run-time{display:none;}
-  .run-doc-btn,.run-by{display:none;}
-  .run-head .run-time,.run-head .run-doc,.run-head .run-by{display:none;}
+  .run-head,.run-summary{grid-template-columns:1fr .9fr .7fr 74px;}
+  .run-time,.run-doc-btn,.run-by,.run-head .run-time,.run-head .run-doc,.run-head .run-by{display:none;}
 }
 
 /* read-only revision snapshot viewer */
-.rev-box{width:100%; max-width:1000px; max-height:min(88vh,820px); display:flex; flex-direction:column; padding:0; overflow:hidden;}
+.rev-box{width:100%; max-width:1140px; max-height:min(88vh,820px); display:flex; flex-direction:column; padding:0; overflow:hidden;}
 .rev-head{display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:22px 24px 16px; border-bottom:1px solid var(--border);}
 .rev-head h3{margin:0 0 3px; display:flex; align-items:center; gap:9px; font-size:19px;}
 .rev-head h3 .ico{width:19px; height:19px; color:var(--pink);}
 .rev-head p{margin:0; color:var(--text-2); font-size:12.5px;}
 .readonly-banner{display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12px; padding:14px 24px 0;}
 .readonly-banner .ico{width:14px; height:14px;}
-.rev-stats{display:flex; gap:10px; padding:14px 24px; flex-wrap:wrap;}
-.rev-stat{background:var(--input); border:1px solid var(--border); border-radius:10px; padding:9px 15px; text-align:center; min-width:84px;}
+.rev-stats{display:grid; grid-template-columns:repeat(6,1fr); gap:10px; padding:14px 24px;}
+.rev-stat{background:var(--input); border:1px solid var(--border); border-radius:10px; padding:9px 15px; text-align:center;}
 .rev-stat b{display:block; font-size:18px; font-weight:800; color:var(--pink); font-variant-numeric:tabular-nums;}
 .rev-stat span{font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em;}
 .rev-table-wrap{overflow:auto; padding:0 24px 24px; flex:1;}
@@ -582,7 +589,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10aw · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10ay · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -640,7 +647,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
     <div class="rev-stats" id="revStats"></div>
     <div class="rev-table-wrap">
       <table class="rev-table">
-        <thead><tr><th>Section</th><th>Issue Type</th><th>Approved Copy</th><th>Current Page Copy</th><th>Status</th><th>Observations</th></tr></thead>
+        <thead><tr><th>Section</th><th>Issue Type</th><th>Approved Copy</th><th>Current Page Copy</th><th>Status</th></tr></thead>
         <tbody id="revBody"></tbody>
       </table>
     </div>
@@ -1892,7 +1899,10 @@ function buildSparkline(container,runsChrono){
     const isLast=i===pts.length-1,r=isLast?5:3;
     const fill=isLast?({good:"#2fd6a6",mid:"#f5a524",bad:"#ff476f",na:"#6a6973"})[runScoreClass(runsChrono[i].score)]:"#ff1449";
     dotsG.insertAdjacentHTML("beforeend",`<circle class="spark-dot" cx="${p[0]}" cy="${p[1]}" r="${r}" fill="${fill}"></circle>`);
-    if(isLast)dotsG.insertAdjacentHTML("beforeend",`<text class="spark-endlabel" x="${p[0]-2}" y="${p[1]-12}" text-anchor="end">${runsChrono[i].score??"—"}%</text>`);
+    if(isLast){
+      const lbl=container.querySelector("#sparkEndLabel");
+      if(lbl){lbl.style.left=(p[0]/W*100)+"%";lbl.style.top=(p[1]-12)+"px";lbl.textContent=`${runsChrono[i].score??"—"}%`;}
+    }
     const hitW=W/runsChrono.length;
     dotsG.insertAdjacentHTML("beforeend",`<rect class="spark-hit" data-i="${i}" x="${p[0]-hitW/2}" y="0" width="${hitW}" height="${H}"></rect>`);
   });
@@ -1939,6 +1949,7 @@ async function renderHistoryBody(){
           <g id="sparkDots"></g>
         </svg>
         <div class="spark-tooltip"></div>
+        <div class="spark-endlabel-html" id="sparkEndLabel"></div>
       </div>
       <svg class="spark-axis" width="100%" height="16" style="display:block;"><g id="sparkAxis"></g></svg>
     </div>
@@ -1949,6 +1960,7 @@ async function renderHistoryBody(){
       <div class="run-doc">Document</div>
       <div class="run-view-col">Summary</div>
       <div class="run-by">User</div>
+      <div></div>
     </div>
     <div class="run-list" id="runList"></div>`;
   buildSparkline(body,chrono);
@@ -1964,7 +1976,7 @@ async function renderHistoryBody(){
           :`<div class="run-doc-btn" style="color:var(--muted); cursor:default;">No document</div>`}
         <div class="run-view-col"><button class="run-view-btn" data-view="${r.id}" title="Summary (read-only)"><svg class="ico" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
         <div class="run-by" title="${r.ran_by?esc(r.ran_by):'—'}">${r.ran_by?esc(r.ran_by):'<span class="muted">—</span>'}</div>
-        ${i===0?'<span class="run-current-tag">Actual</span>':''}
+        <div>${i===0?'<span class="run-current-tag">Actual</span>':''}</div>
       </div>
     </div>`;
   }).join("");
@@ -2004,7 +2016,7 @@ async function openRevisionView(runId,r){
       <div class="rev-stat"><b>${run.score??"—"}%</b><span>Match Score</span></div>`;
     const isLatest=state.runs.length>0&&state.runs[0].id===runId;
     const rows=(run.issues||[]).filter(i=>i.type!=="Observation");
-    $("#revBody").innerHTML=rows.length?rows.map((i,idx)=>{
+    $("#revBody").innerHTML=rows.length?rows.map(i=>{
       const st=isLatest?statusOf(issueId(i)):null;
       return `<tr>
       <td>${esc(i.section)}</td>
@@ -2012,10 +2024,8 @@ async function openRevisionView(runId,r){
       <td class="cell-approved">${i.approved==="—"?'<span class="empty-dash">—</span>':esc(i.approved)}</td>
       <td class="cell-current">${i.current==="—"?'<span class="empty-dash">—</span>':esc(i.current)}</td>
       <td>${st?`<span class="status-btn" style="--sc:${STATUS_COLORS[st]}; cursor:default;">${STATUS_LABELS[st]}</span>`:'<span class="empty-dash">—</span>'}</td>
-      <td class="obs-cell">${i.fix?`<button class="obs-btn" data-i="${idx}" title="View observation"><svg class="ico" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>`:'<span class="empty-dash">—</span>'}</td>
       </tr>`;}).join("")
-    :`<tr><td colspan="6" class="no-rows">No issues in this revision.</td></tr>`;
-    $("#revBody").querySelectorAll(".obs-btn").forEach(b=>b.addEventListener("click",()=>openObs(rows[+b.dataset.i])));
+    :`<tr><td colspan="5" class="no-rows">No issues in this revision.</td></tr>`;
     $("#revisionModal").classList.remove("hidden");
   }catch(e){toast("Could not load this revision: "+(e.message||e));}
 }
