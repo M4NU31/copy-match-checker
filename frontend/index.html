@@ -321,7 +321,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
    can stretch non-uniformly to fill the width, which is fine for the line/
    area paths but visibly distorts any SVG <text> the same way (stretched
    horizontally). Plain HTML text positioned over the chart isn't affected. */
-.spark-endlabel-html{position:absolute; transform:translate(-100%,0); font-size:11px; font-weight:700;
+.spark-endlabel-html{position:absolute; transform:translate(-100%,0); font-size:15px; font-weight:700;
   color:var(--text); font-variant-numeric:tabular-nums; white-space:nowrap; pointer-events:none;}
 .spark-axis text{font-size:10.5px; fill:var(--muted); font-family:inherit;}
 .crosshair{stroke:var(--border-2); stroke-width:1; stroke-dasharray:2 3; pointer-events:none; opacity:0;}
@@ -337,7 +337,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
    zone before Summary/User on the right. The 7th column is always reserved
    for the "Actual" tag (empty on every other row) so it lines up consistently
    whether or not a given row shows it. */
-.run-head,.run-summary{display:grid; grid-template-columns:1fr .7fr .9fr 2.4fr .7fr 1.1fr 74px; align-items:center; gap:16px;}
+.run-head,.run-summary{display:grid; grid-template-columns:1fr .7fr .9fr 2fr 1.3fr .7fr 1.1fr 74px; align-items:center; gap:16px;}
 .run-head{padding:0 14px 8px;}
 .run-head > div{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--muted);}
 .run-head .run-view-col{text-align:center;}
@@ -357,6 +357,9 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; width:100%;}
 .run-doc-btn:hover{color:var(--pink-2); text-decoration:underline;}
 .run-doc-btn .ico{width:13px; height:13px; flex:none; color:var(--pink);}
+.run-url{color:var(--text-2); font-size:12px; text-decoration:none; overflow:hidden; text-overflow:ellipsis;
+  white-space:nowrap; display:block;}
+.run-url:hover{color:var(--pink-2); text-decoration:underline;}
 .run-view-col{display:flex; align-items:center; justify-content:center;}
 .run-view-btn{background:transparent; border:none; color:var(--pink); cursor:pointer; padding:4px; display:inline-flex; align-items:center; justify-content:center;}
 .run-view-btn:hover{color:var(--pink-2);}
@@ -368,7 +371,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .hist-empty{color:var(--muted); text-align:center; padding:30px 10px;}
 @media (max-width:640px){
   .run-head,.run-summary{grid-template-columns:1fr .9fr .7fr 74px;}
-  .run-time,.run-doc-btn,.run-by,.run-head .run-time,.run-head .run-doc,.run-head .run-by{display:none;}
+  .run-time,.run-doc-btn,.run-url,.run-by,.run-head .run-time,.run-head .run-doc,.run-head .run-url,.run-head .run-by{display:none;}
 }
 
 /* read-only revision snapshot viewer */
@@ -379,7 +382,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .rev-head p{margin:0; color:var(--text-2); font-size:12.5px;}
 .readonly-banner{display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12px; padding:14px 24px 0;}
 .readonly-banner .ico{width:14px; height:14px;}
-.rev-stats{display:grid; grid-template-columns:repeat(6,1fr); gap:10px; padding:14px 24px;}
+.rev-stats{display:grid; grid-template-columns:repeat(6,1fr); gap:10px; padding:14px 24px; width:100%;}
 .rev-stat{background:var(--input); border:1px solid var(--border); border-radius:10px; padding:9px 15px; text-align:center;}
 .rev-stat b{display:block; font-size:18px; font-weight:800; color:var(--pink); font-variant-numeric:tabular-nums;}
 .rev-stat span{font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em;}
@@ -589,7 +592,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10ay · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10az · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -1958,6 +1961,7 @@ async function renderHistoryBody(){
       <div class="run-time">Time</div>
       <div class="run-score-col">Match Score</div>
       <div class="run-doc">Document</div>
+      <div class="run-url">URL</div>
       <div class="run-view-col">Summary</div>
       <div class="run-by">User</div>
       <div></div>
@@ -1974,6 +1978,9 @@ async function renderHistoryBody(){
         ${r.doc_filename
           ?`<button class="run-doc-btn" data-doc="${r.id}" title="Download ${esc(r.doc_filename)}"><svg class="ico" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg><span>${esc(r.doc_filename)}</span></button>`
           :`<div class="run-doc-btn" style="color:var(--muted); cursor:default;">No document</div>`}
+        ${r.page_url
+          ?`<a class="run-url" href="${esc(r.page_url)}" target="_blank" rel="noopener" title="${esc(r.page_url)}">${esc(r.page_url)}</a>`
+          :'<span class="muted">—</span>'}
         <div class="run-view-col"><button class="run-view-btn" data-view="${r.id}" title="Summary (read-only)"><svg class="ico" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
         <div class="run-by" title="${r.ran_by?esc(r.ran_by):'—'}">${r.ran_by?esc(r.ran_by):'<span class="muted">—</span>'}</div>
         <div>${i===0?'<span class="run-current-tag">Actual</span>':''}</div>
@@ -1994,12 +2001,11 @@ function computeRunStats(issues){
     cta:I.filter(i=>i.type==="CTA Issue"||i.type==="Link Review").length};
 }
 // Read-only snapshot of a past run's issues table — same columns/format as the
-// live table, plus a Status column. Per-issue status only exists client-side
-// for the CURRENT project (state.status), not saved into old run snapshots —
-// a new run always starts every issue back at "not_started", so a status only
-// has a meaningful value to show for the latest ("Actual") run; older runs
-// show a dash. issueId() is a deterministic content hash, so it lines up with
-// state.status's keys as long as this is that same latest run.
+// live table, plus a Status column. Status is mirrored onto the latest saved
+// run every time it's changed (see handle_issue_toggle in serve.py), so it's
+// permanently frozen once a newer run supersedes this one. Runs saved before
+// that backend change won't have a status field on their issues — those show
+// a dash rather than a guess.
 async function openRevisionView(runId,r){
   try{
     const run=state.runDetails[runId]||(state.runDetails[runId]=await apiGet(`/projects/${state.projectId}/runs/${runId}`));
@@ -2014,10 +2020,9 @@ async function openRevisionView(runId,r){
       <div class="rev-stat"><b>${stats.extra}</b><span>Extra Copy</span></div>
       <div class="rev-stat"><b>${stats.cta}</b><span>CTA / Link</span></div>
       <div class="rev-stat"><b>${run.score??"—"}%</b><span>Match Score</span></div>`;
-    const isLatest=state.runs.length>0&&state.runs[0].id===runId;
     const rows=(run.issues||[]).filter(i=>i.type!=="Observation");
     $("#revBody").innerHTML=rows.length?rows.map(i=>{
-      const st=isLatest?statusOf(issueId(i)):null;
+      const st=i.status||null;
       return `<tr>
       <td>${esc(i.section)}</td>
       <td><span class="type-pill">${esc(i.type)}</span></td>

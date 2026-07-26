@@ -838,16 +838,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._db_unavailable()
         try:
             rows = db_query(
-                "SELECT id, ran_at, score, issues, doc_filename, ran_by FROM project_runs "
+                "SELECT id, ran_at, score, issues, doc_filename, ran_by, page_url FROM project_runs "
                 "WHERE project_id=%s ORDER BY ran_at DESC", (pid,), fetch="all")
             runs = []
-            for (rid, ran_at, score, issues, doc_filename, ran_by) in rows:
+            for (rid, ran_at, score, issues, doc_filename, ran_by, page_url) in rows:
                 issues = issues or []
                 total = len([i for i in issues if isinstance(i, dict) and i.get("type") != "Observation"])
                 runs.append({
                     "id": rid, "ran_at": ran_at.isoformat() if ran_at else None,
                     "score": score, "issues_total": total, "doc_filename": doc_filename,
-                    "ran_by": ran_by or None,
+                    "ran_by": ran_by or None, "page_url": page_url,
                 })
             self._send(200, "application/json", json.dumps({"runs": runs}).encode("utf-8"))
         except Exception as e:  # noqa: BLE001
@@ -947,6 +947,28 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                         issue["done"] = done
                     found = True
             db_query("UPDATE projects SET issues=%s::jsonb, updated_at=now() WHERE id=%s", (json.dumps(issues), pid))
+            # Also mirror the status onto the latest saved run (project_runs is a
+            # frozen snapshot per run, so once a NEWER run supersedes this one the
+            # status is permanently locked in — this is what lets "Review overview"
+            # show the final status issues were left in for that run, not just the
+            # live/current project).
+            latest_run = db_query(
+                "SELECT id, issues FROM project_runs WHERE project_id=%s ORDER BY ran_at DESC LIMIT 1",
+                (pid,), fetch="one")
+            if latest_run:
+                run_id, run_issues = latest_run
+                run_issues = run_issues or []
+                run_changed = False
+                for issue in run_issues:
+                    if isinstance(issue, dict) and issue.get("id") == issue_id:
+                        if status is not None:
+                            issue["status"] = status
+                            issue["done"] = status in ("done", "solved_qa")
+                        else:
+                            issue["done"] = done
+                        run_changed = True
+                if run_changed:
+                    db_query("UPDATE project_runs SET issues=%s::jsonb WHERE id=%s", (json.dumps(run_issues), run_id))
             total, resolved, _ = _issue_stats(issues, None)
             self._send(200, "application/json", json.dumps({
                 "ok": found, "issues_total": total, "issues_resolved": resolved,
