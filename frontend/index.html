@@ -67,7 +67,7 @@ body{
 .grid-2{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:18px;}
 .card-head{display:flex; align-items:center; gap:11px; margin-bottom:18px;}
 .card-head .num{
-  width:26px; height:26px; border-radius:8px; background:var(--pink-dim); color:var(--pink);
+  width:26px; height:26px; border-radius:8px; background:transparent; color:var(--pink);
   display:grid; place-items:center; font-weight:800; font-size:13px; border:1px solid rgba(255,20,73,.3);
 }
 .card-head h2{margin:0; font-size:16px; display:flex; align-items:center; gap:8px;}
@@ -94,7 +94,8 @@ select{appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='h
 
 /* ---------- dropzone ---------- */
 .dropzone{border:1.5px dashed var(--border-2); border-radius:12px; padding:26px; text-align:center;
-  cursor:pointer; transition:.15s; background:var(--input);}
+  cursor:pointer; transition:.15s; background:var(--input); position:relative;
+  display:flex; flex-direction:column; justify-content:center;}
 .dropzone:hover{border-color:var(--pink); background:var(--pink-dim);}
 .dropzone.drag{border-color:var(--pink); background:var(--pink-dim);}
 .drop-icon{color:var(--pink); display:flex; justify-content:center; margin-bottom:8px;}
@@ -102,8 +103,20 @@ select{appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='h
 .dropzone p{margin:5px 0 2px;}
 .picker-row{display:flex; gap:14px; align-items:stretch;}
 .picker-box{flex:1; min-width:0;}
-.drive-box{background:transparent; font:inherit; color:var(--text); display:flex; flex-direction:column; justify-content:center;}
+.drive-box{background:transparent; font:inherit; color:var(--text);}
+.drive-box.busy{pointer-events:none; opacity:.6;}
 @media (max-width:640px){.picker-row{flex-direction:column;}}
+/* Approved-copy flash: shown the instant a file finishes loading, then fades
+   to reveal the box underneath — the green check confirms "this is loaded,
+   move on" without needing a status line. */
+.approved-flash{position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  background:var(--input); border-radius:12px; opacity:0; pointer-events:none;}
+.approved-flash svg{width:52px; height:52px;}
+/* Card 1 stretches to match card 2's height when card 2 grows (e.g. the page
+   picker appears) — without this the extra height just sat empty below the
+   upload/drive boxes instead of the boxes themselves growing into it. */
+.card-source{display:flex; flex-direction:column;}
+.card-source .picker-row{flex:1;}
 .file-chip{display:flex; align-items:center; gap:12px; text-align:left; background:var(--card-2);
   border:1px solid var(--border-2); border-radius:10px; padding:12px 14px;}
 .file-chip .file-ico{color:var(--pink);}
@@ -473,10 +486,10 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
   <!-- ============ INPUTS ============ -->
   <section class="grid-2">
     <!-- Approved copy -->
-    <div class="card">
+    <div class="card card-source">
       <div class="card-head">
         <span class="num">1</span>
-        <h2>Approved Copy</h2>
+        <h2>Source Document</h2>
       </div>
 
       <div class="field-row">
@@ -499,12 +512,23 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
               <button class="x" id="clearFile" title="Remove"><svg class="ico ico-sm" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
           </div>
+          <div class="approved-flash" id="dropApproved"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#2fd6a6"/><path d="M7 12.5l3 3 7-7" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
         </div>
-        <button type="button" class="dropzone picker-box drive-box hidden" id="driveBox">
-          <div class="drop-icon"><svg class="ico" viewBox="0 0 24 24"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></div>
-          <p><strong>Search in Google Drive</strong></p>
-          <p class="muted small">My Drive or Shared with me</p>
-        </button>
+        <div class="dropzone picker-box drive-box hidden" id="driveBox">
+          <div id="driveEmpty">
+            <div class="drop-icon"><svg class="ico" viewBox="0 0 24 24"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></div>
+            <p><strong>Search in Google Drive</strong></p>
+            <p class="muted small">My Drive or Shared with me</p>
+          </div>
+          <div id="driveFilled" class="hidden">
+            <div class="file-chip">
+              <svg class="ico ico-lg file-ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <div><strong id="driveFileName">file.docx</strong><div class="muted small" id="driveFileMeta">DOCX · 0 KB</div></div>
+              <button class="x" id="clearDriveFile" title="Remove"><svg class="ico ico-sm" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+          </div>
+          <div class="approved-flash" id="driveApproved"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#2fd6a6"/><path d="M7 12.5l3 3 7-7" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </div>
       </div>
 
       <!-- Status message box removed from this card per request, pending a
@@ -530,7 +554,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
     <div class="card">
       <div class="card-head">
         <span class="num">2</span>
-        <h2>Page to Compare</h2>
+        <h2>Target Page</h2>
       </div>
 
       <label class="field">
@@ -596,7 +620,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10be · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10bf · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -1114,15 +1138,18 @@ async function onDrivePicked(data){
     }
     const res=await fetch(url,{headers:{Authorization:"Bearer "+_gToken}});
     if(!res.ok)throw new Error("Drive download failed (HTTP "+res.status+")");
-    await loadFile(new File([await res.arrayBuffer()],filename),doc.url||null);
+    await loadFile(new File([await res.arrayBuffer()],filename),doc.url||null,"drive");
     if(doc.mimeType===GDOC_MIME){state.docComments=await fetchDriveComments(doc.id);renderDocComments();}
   }catch(e){setStatus("","");alert("Could not import from Google Drive: "+(e.message||e));}
 }
 async function openDrive(){
   const btn=$("#driveBox");
-  try{btn.disabled=true;await ensurePicker();showDrivePicker(await getToken());}
+  // driveBox is a plain div (not a real <button>, so nested buttons like the
+  // remove-file "x" inside it stay valid HTML) — a CSS class stands in for
+  // the native .disabled property to block double-clicks while it loads.
+  try{btn.classList.add("busy");await ensurePicker();showDrivePicker(await getToken());}
   catch(e){alert("Google Drive: "+(e.message||e));}
-  finally{btn.disabled=false;}
+  finally{btn.classList.remove("busy");}
 }
 // OAuth needs an HTTPS origin registered in Google Cloud — only offer it there.
 if(location.protocol==="https:"){const r=$("#driveBox");if(r){r.classList.remove("hidden");r.addEventListener("click",openDrive);}}
@@ -1607,7 +1634,19 @@ dz.addEventListener("dragover",e=>{e.preventDefault();dz.classList.add("drag");}
 dz.addEventListener("dragleave",()=>dz.classList.remove("drag"));
 dz.addEventListener("drop",e=>{e.preventDefault();dz.classList.remove("drag");if(e.dataTransfer.files[0])loadFile(e.dataTransfer.files[0]);});
 fileInput.addEventListener("change",e=>e.target.files[0]&&loadFile(e.target.files[0]));
-$("#clearFile").addEventListener("click",e=>{e.stopPropagation();state.approvedText="";state.approvedBlocks=[];state.pages=[];state.pdfDoc=null;state.pdfLines=[];state.docText="";state.docKind=null;state.docFile=null;state.docUrl=null;state.docComments=[];renderDocComments();fileInput.value="";$("#dropFilled").classList.add("hidden");$("#dropEmpty").classList.remove("hidden");hidePageSelect();setStatus("No approved copy loaded yet.");});
+// Shared by both remove buttons — whichever box (upload or Drive) is showing
+// the loaded file, clearing it resets BOTH back to their empty state so
+// there's never a stale "filled" box left over from a previous source.
+function clearApprovedDoc(){
+  state.approvedText="";state.approvedBlocks=[];state.pages=[];state.pdfDoc=null;state.pdfLines=[];state.docText="";
+  state.docKind=null;state.docFile=null;state.docUrl=null;state.docSource=null;state.docComments=[];renderDocComments();
+  fileInput.value="";
+  $("#dropFilled").classList.add("hidden");$("#dropEmpty").classList.remove("hidden");
+  $("#driveFilled").classList.add("hidden");$("#driveEmpty").classList.remove("hidden");
+  hidePageSelect();setStatus("No approved copy loaded yet.");
+}
+$("#clearFile").addEventListener("click",e=>{e.stopPropagation();clearApprovedDoc();});
+$("#clearDriveFile").addEventListener("click",e=>{e.stopPropagation();clearApprovedDoc();});
 
 function hidePageSelect(){$("#pageSelectField").classList.add("hidden");$("#pageSelect").innerHTML="";}
 function renderPageSelect(pages){
@@ -1668,8 +1707,37 @@ $("#pageUrl").addEventListener("blur",()=>{
   if(guess)$("#clientName").value=guess;
 });
 
-async function loadFile(file,docUrl){
+// Shows the loaded-file chip in whichever box is the actual SOURCE ("upload"
+// or "drive") and resets the other one back to its empty state — a file
+// picked from Drive should visually land in the Drive box, not jump over to
+// the neighboring upload dropzone just because they share one load pipeline.
+function showLoadedIn(source,file){
+  const meta=`${file.name.split(".").pop().toUpperCase()} · ${(file.size/1024).toFixed(0)} KB`;
+  if(source==="drive"){
+    $("#driveFileName").textContent=file.name;$("#driveFileMeta").textContent=meta;
+    $("#driveEmpty").classList.add("hidden");$("#driveFilled").classList.remove("hidden");
+    $("#dropEmpty").classList.remove("hidden");$("#dropFilled").classList.add("hidden");
+    flashApproved("#driveApproved");
+  }else{
+    $("#fileName").textContent=file.name;$("#fileMeta").textContent=meta;
+    $("#dropEmpty").classList.add("hidden");$("#dropFilled").classList.remove("hidden");
+    $("#driveEmpty").classList.remove("hidden");$("#driveFilled").classList.add("hidden");
+    flashApproved("#dropApproved");
+  }
+}
+// Shows a green check over the box the instant the doc is approved (parsed
+// successfully), then fades it out to reveal the box again underneath —
+// signals "this is good, move to the next step" without a status line.
+function flashApproved(sel){
+  const el=$(sel);if(!el)return;
+  el.style.transition="none";el.style.opacity="1";
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    el.style.transition="opacity 1.3s ease .5s";el.style.opacity="0";
+  }));
+}
+async function loadFile(file,docUrl,source){
   state.docUrl=docUrl||null;  // Google Drive view link when picked from Drive, else null
+  state.docSource=source||"upload";
   state.docComments=[];renderDocComments();  // cleared on each load; set from the parse below
   try{
     setStatus("Parsing "+file.name+"…");
@@ -1678,8 +1746,7 @@ async function loadFile(file,docUrl){
       hidePageSelect();setStatus("No usable copy found in this file. If it's a scanned/image PDF, the copy can't be read automatically.","err");toast("No readable copy in file");return;}
     state.approvedText=rawText;state.isDocx=file.name.toLowerCase().endsWith(".docx");state.docFile=file;state.docComments=comments||[];renderDocComments();
     state.docKind=docKind;state.pdfDoc=pdf||null;state.pdfLines=lines||[];state.docText=rawText;
-    $("#fileName").textContent=file.name;$("#fileMeta").textContent=`${file.name.split(".").pop().toUpperCase()} · ${(file.size/1024).toFixed(0)} KB`;
-    $("#dropEmpty").classList.add("hidden");$("#dropFilled").classList.remove("hidden");
+    showLoadedIn(state.docSource,file);
     setStatus("Splitting the document into pages…");
     state.pages=await segmentPagesWithClaude(raw,regionSEO);
     renderPageSelect(state.pages);
@@ -1832,10 +1899,11 @@ $("#backToProjects").addEventListener("click",()=>{goDashboard();});
 function resetToolState(){
   state.approvedText="";state.approvedBlocks=[];state.pages=[];state.issues=[];state.allIssues=[];state.status=new Map();
   state.docKind=null;state.pdfDoc=null;state.pdfLines=[];state.docText="";state.isDocx=false;state.score=undefined;
-  state.approvedCount=undefined;state.pageCount=undefined;state.meta={};state.docFile=null;state.docUrl=null;state.docComments=[];state.runs=[];state.runDetails={};state.currentRunId=null;
+  state.approvedCount=undefined;state.pageCount=undefined;state.meta={};state.docFile=null;state.docUrl=null;state.docSource=null;state.docComments=[];state.runs=[];state.runDetails={};state.currentRunId=null;
   $("#historyTrigger").classList.add("hidden");$("#resetBtn").classList.add("hidden");$("#projectDocRow").classList.add("hidden");$("#historyCount").textContent="0";$("#historyModal").classList.add("hidden");
   $("#clientName").value="";$("#pageName").value="";$("#pageUrl").value="";
   fileInput.value="";$("#dropFilled").classList.add("hidden");$("#dropEmpty").classList.remove("hidden");
+  $("#driveFilled").classList.add("hidden");$("#driveEmpty").classList.remove("hidden");
   hidePageSelect();setStatus("No approved copy loaded yet.");$("#runNote").textContent="";
   $("#results").classList.add("hidden");
 }
