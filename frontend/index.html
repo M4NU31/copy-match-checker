@@ -516,10 +516,11 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
         <a class="btn btn-ghost btn-sm hidden" id="projectDocOpen" target="_blank" rel="noopener">Open in Drive</a>
       </div>
 
-      <div class="doc-comments hidden" id="docComments">
-        <div class="dc-head">Document comments <span class="count" id="docCommentsCount">0</span></div>
-        <div class="dc-list" id="docCommentsList"></div>
-      </div>
+      <!-- Document comments UI removed from this card per request (for any
+           doc type — regular upload or Drive) pending a better home elsewhere.
+           renderDocComments()/state.docComments and sending them as AI context
+           in compareWithClaude are untouched — only this display is gone;
+           renderDocComments() already no-ops safely without #docComments. -->
     </div>
 
     <!-- Page to compare -->
@@ -592,7 +593,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10bb · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10bd · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -625,7 +626,6 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
     <div class="hist-head">
       <div>
         <h3><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Revision history</h3>
-        <p id="historySub"></p>
       </div>
       <button class="x" id="closeHistory"><svg class="ico" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
@@ -1830,7 +1830,7 @@ function resetToolState(){
   state.approvedText="";state.approvedBlocks=[];state.pages=[];state.issues=[];state.allIssues=[];state.status=new Map();
   state.docKind=null;state.pdfDoc=null;state.pdfLines=[];state.docText="";state.isDocx=false;state.score=undefined;
   state.approvedCount=undefined;state.pageCount=undefined;state.meta={};state.docFile=null;state.docUrl=null;state.docComments=[];state.runs=[];state.runDetails={};state.currentRunId=null;
-  $("#historyTrigger").classList.add("hidden");$("#resetBtn").classList.add("hidden");$("#projectDocRow").classList.add("hidden");$("#docComments").classList.add("hidden");$("#historyCount").textContent="0";$("#historyModal").classList.add("hidden");
+  $("#historyTrigger").classList.add("hidden");$("#resetBtn").classList.add("hidden");$("#projectDocRow").classList.add("hidden");$("#historyCount").textContent="0";$("#historyModal").classList.add("hidden");
   $("#clientName").value="";$("#pageName").value="";$("#pageUrl").value="";
   fileInput.value="";$("#dropFilled").classList.add("hidden");$("#dropEmpty").classList.remove("hidden");
   hidePageSelect();setStatus("No approved copy loaded yet.");$("#runNote").textContent="";
@@ -1939,7 +1939,6 @@ const MONTHS_EN=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","No
 function fmtDate(iso){if(!iso)return "—";const d=new Date(iso);return `${String(d.getDate()).padStart(2,"0")} ${MONTHS_EN[d.getMonth()]} ${d.getFullYear()}`;}
 async function renderHistoryBody(){
   const body=$("#historyBody");
-  $("#historySub").textContent=`${state.meta&&state.meta.client||"—"} — ${state.runs.length} run${state.runs.length===1?"":"s"} recorded`;
   if(!state.runs.length){body.innerHTML=`<div class="hist-empty">No runs saved for this project yet — click "Check" to start the history.</div>`;return;}
   // The "Match score over time" sparkline used to render here — removed per
   // request but deliberately NOT deleted: buildSparkline() and its .spark-*
