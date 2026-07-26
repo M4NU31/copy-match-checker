@@ -180,8 +180,7 @@ select{appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='h
 .run-note{margin-top:9px; text-align:center; min-height:16px;}
 
 /* ---------- summary ---------- */
-.section-title{display:flex; align-items:center; gap:9px; font-size:16px; font-weight:700; margin:0 0 14px;}
-.section-title .ico{color:var(--pink);}
+.section-title{display:flex; align-items:center; gap:9px; font-size:19px; font-weight:700; margin:0 0 14px;}
 .summary{display:grid; grid-template-columns:repeat(6,1fr); gap:10px; margin-bottom:18px;}
 .stat{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:18px 12px; text-align:center;}
 .stat .num{font-size:27px; font-weight:800; line-height:1; color:#FF1449;}
@@ -222,8 +221,14 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .status-opt{display:flex; align-items:center; gap:9px; width:100%; background:transparent; border:none; color:var(--text); font-size:13px; text-align:left; padding:8px 10px; border-radius:7px; cursor:pointer;}
 .status-opt:hover{background:rgba(255,255,255,.06);}
 .status-opt .dot{width:10px; height:10px; border-radius:50%; flex:none;}
-.col-done{width:172px;} .col-sec{width:150px;} .col-type{width:124px;} .col-view{width:54px;}
+.col-done{width:172px;} .col-sec{width:150px;} .col-type{width:124px;} .col-obs{width:110px;}
 .view-cell{text-align:center;}
+.obs-cell{text-align:center;}
+.obs-btn{background:transparent; border:none; color:#FF1449; cursor:pointer; padding:2px; display:inline-flex; vertical-align:-2px;}
+.obs-btn:hover{color:var(--pink-2);}
+.obs-btn .ico{width:15px; height:15px;}
+.obs-sub{margin:-4px 0 10px;}
+.obs-body{white-space:pre-wrap; line-height:1.6; color:var(--text-2);}
 .type-pill{font-size:11px; padding:2px 8px; border-radius:6px; white-space:nowrap;
   background:var(--card-2); border:1px solid var(--border-2); color:var(--text-2);}
 .table-foot{display:flex; justify-content:space-between; align-items:center; margin-top:14px;}
@@ -296,7 +301,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .history-trigger:hover{border-color:var(--pink); color:var(--pink-2);}
 .history-trigger .ico{color:var(--pink);}
 .history-trigger .count{background:var(--pink-dim); color:var(--pink-2); border-radius:20px; padding:1px 8px; font-size:11.5px;}
-.hist-box{width:100%; max-width:700px; max-height:min(88vh,820px); display:flex; flex-direction:column; padding:0; overflow:hidden;}
+.hist-box{width:100%; max-width:900px; max-height:min(88vh,820px); display:flex; flex-direction:column; padding:0; overflow:hidden;}
 .hist-head{display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:22px 24px 16px; border-bottom:1px solid var(--border);}
 .hist-head h3{margin:0 0 3px;} .hist-head p{margin:0; color:var(--text-2); font-size:12.5px;}
 .hist-body{overflow-y:auto; padding:20px 24px 24px;}
@@ -321,7 +326,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .run-list{display:flex; flex-direction:column; gap:8px;}
 .run-row{border:1px solid var(--border); border-radius:11px; background:var(--input); overflow:hidden;}
 .run-row.current{border-color:rgba(255,20,73,.4); background:var(--pink-dim);}
-.run-summary{display:flex; align-items:center; gap:12px; padding:12px 14px; cursor:pointer; flex-wrap:wrap;}
+.run-summary{display:flex; align-items:center; gap:12px; padding:12px 14px; flex-wrap:wrap;}
 .run-when{flex:none; width:150px;}
 .run-when .d{font-weight:600; color:var(--text); font-size:13px;}
 .run-when .t{color:var(--muted); font-size:11.5px;}
@@ -335,24 +340,12 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .run-by{flex:none; width:110px; color:var(--text-2); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 .run-delta{flex:none; font-size:12px; font-weight:600; font-variant-numeric:tabular-nums; width:130px;}
 .run-delta.up{color:var(--green);} .run-delta.down{color:var(--pink-2);} .run-delta.flat{color:var(--muted);}
+.run-dl-btn{flex:none; background:transparent; border:none; color:#FF1449; cursor:pointer; padding:4px; display:inline-flex;}
+.run-dl-btn:hover{color:var(--pink-2);}
+.run-dl-btn .ico{width:16px; height:16px;}
 .run-current-tag{flex:none; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.5px;
   color:var(--pink-2); background:var(--pink-dim); border:1px solid rgba(255,20,73,.3); border-radius:6px; padding:3px 7px;}
-.run-toggle{flex:none; color:var(--muted); display:flex; align-items:center; gap:5px; font-size:12px; font-weight:600;}
-.run-toggle .ico{width:14px; height:14px; transition:transform .15s;}
-.run-row.open .run-toggle .ico{transform:rotate(90deg);}
-.run-detail{display:none; border-top:1px solid var(--border); padding:4px 14px 14px;}
-.run-row.open .run-detail{display:block;}
-.readonly-tag{display:flex; align-items:center; justify-content:space-between; gap:6px; color:var(--muted); font-size:11px; margin:10px 0;}
-.readonly-tag .ico{width:12px; height:12px;}
-.run-download{color:var(--pink-2); text-decoration:none; font-weight:600; display:inline-flex; align-items:center; gap:5px;}
-.run-download:hover{color:var(--pink);}
-.detail-table{width:100%; border-collapse:collapse; font-size:12.5px;}
-.detail-table th{text-align:left; color:var(--muted); font-weight:600; font-size:10.5px; text-transform:uppercase;
-  letter-spacing:.4px; padding:7px 8px; border-bottom:1px solid var(--border);}
-.detail-table td{padding:9px 8px; border-bottom:1px solid var(--border); vertical-align:top; color:var(--text-2);}
-.detail-table tr:last-child td{border-bottom:none;}
-.detail-table .cur{color:var(--text);}
-.hist-empty,.hist-loading{color:var(--muted); text-align:center; padding:30px 10px;}
+.hist-empty{color:var(--muted); text-align:center; padding:30px 10px;}
 @media (max-width:640px){.run-when{width:104px;} .run-issues,.run-doc,.run-by{display:none;}}
 </style>
 </head>
@@ -524,7 +517,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
   <!-- ============ RESULTS ============ -->
   <section id="results" class="hidden">
     <!-- summary -->
-    <h3 class="section-title"><svg class="ico" viewBox="0 0 24 24"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/></svg>Summary <span class="muted small" id="summaryMeta" style="font-weight:400;"></span></h3>
+    <h3 class="section-title">Summary</h3>
     <div class="summary" id="summaryTabs">
       <div class="stat tab-stat active" data-filter="all"><div class="num" id="sTotal">0</div><div class="lbl">Total Issues</div></div>
       <div class="stat tab-stat" data-filter="Missing Copy"><div class="num" id="sMissing">0</div><div class="lbl">Missing Copy</div></div>
@@ -538,8 +531,8 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
     <div class="card" style="margin-bottom:18px;">
       <div class="table-wrap">
         <table>
-          <colgroup><col class="col-sec"><col class="col-view"><col class="col-type"><col><col><col><col class="col-done"></colgroup>
-          <thead><tr><th>Section</th><th class="view-cell">View</th><th>Issue Type</th><th>Approved Copy</th><th>Current Page Copy</th><th>Observations</th><th class="done-cell">✓</th></tr></thead>
+          <colgroup><col class="col-sec"><col class="col-type"><col><col><col class="col-obs"><col class="col-done"></colgroup>
+          <thead><tr><th>Section</th><th>Issue Type</th><th>Approved Copy</th><th>Current Page Copy</th><th>Observations</th><th class="done-cell">✓</th></tr></thead>
           <tbody id="issuesBody"></tbody>
         </table>
       </div>
@@ -556,7 +549,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10al · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10ao · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -618,6 +611,15 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
     <div class="modal-head"><h3><svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Locate in document</h3><button class="x" id="closeLocate"><svg class="ico" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
     <div class="locate-sub muted small" id="locateSub"></div>
     <div id="locateBody" class="locate-body"></div>
+  </div>
+</div>
+
+<!-- observation / suggested fix popup -->
+<div class="modal hidden" id="obsModal">
+  <div class="modal-box">
+    <div class="modal-head"><h3><svg class="ico" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Observation</h3><button class="x" id="closeObs"><svg class="ico" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <div class="obs-sub muted small" id="obsSub"></div>
+    <p id="obsBody" class="obs-body"></p>
   </div>
 </div>
 
@@ -1426,7 +1428,6 @@ function renderSummary(){const I=state.allIssues.filter(i=>!isResolvedId(issueId
   $("#sExtra").textContent=I.filter(i=>i.type==="Extra Section").length;
   $("#sCta").textContent=I.filter(i=>i.type==="CTA Issue"||i.type==="Link Review").length;
   $("#sMatch").textContent=liveScore()+"%";
-  $("#summaryMeta").textContent=`· ${state.meta.client||"—"} · ${state.meta.page||"—"} · ${state.meta.cms||"—"} · ${state.approvedCount??"—"} approved vs ${state.pageCount??"—"} page blocks`;
 }
 function renderTable(filter){
   const body=$("#issuesBody");let rows=state.allIssues;
@@ -1435,23 +1436,30 @@ function renderTable(filter){
   else rows=rows.filter(i=>i.type===filter);
   // keep priority order, but push resolved (checked) rows to the bottom
   rows=rows.map((i,idx)=>({i,idx,done:isResolvedId(issueId(i))})).sort((a,b)=>(a.done-b.done)||(a.idx-b.idx));
-  if(!rows.length){body.innerHTML=`<tr><td colspan="7" class="no-rows">✓ No issues in this category.</td></tr>`;$("#rowCount").textContent="0 issues";return;}
-  const canLocate=!!state.docKind;
+  if(!rows.length){body.innerHTML=`<tr><td colspan="6" class="no-rows">✓ No issues in this category.</td></tr>`;$("#rowCount").textContent="0 issues";return;}
   body.innerHTML=rows.map(({i,done})=>{const id=issueId(i),st=statusOf(id);return `<tr class="${done?'done':''}" data-issue-id="${esc(id)}">
     <td>${esc(i.section)}</td>
-    <td class="view-cell">${canLocate?`<button class="locate-btn" data-loc="${esc(id)}" title="Preview in the document"><svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>`:""}</td>
     <td><span class="type-pill">${esc(i.type)}</span></td>
     <td class="cell-approved">${i.approved==="—"?'<span class="empty-dash">—</span>':esc(i.approved)}</td>
     <td class="cell-current">${i.current==="—"?'<span class="empty-dash">—</span>':esc(i.current)}</td>
-    <td>${esc(i.fix)}</td>
+    <td class="obs-cell">${i.fix?`<button class="obs-btn" data-obs="${esc(id)}" title="View observation"><svg class="ico" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>`:'<span class="empty-dash">—</span>'}</td>
     <td class="done-cell"><button class="status-btn" data-id="${esc(id)}" style="--sc:${STATUS_COLORS[st]}">${STATUS_LABELS[st]}<svg class="ico caret" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></button></td></tr>`;}).join("");
-  body.querySelectorAll(".locate-btn").forEach(b=>b.addEventListener("click",()=>{
-    const iss=state.allIssues.find(x=>issueId(x)===b.dataset.loc); if(iss)locateIssue(iss);
+  body.querySelectorAll(".obs-btn").forEach(b=>b.addEventListener("click",()=>{
+    const iss=state.allIssues.find(x=>issueId(x)===b.dataset.obs); if(iss)openObs(iss);
   }));
   const open=rows.filter(r=>!r.done).length;
   $("#rowCount").textContent=`${rows.length} row${rows.length===1?"":"s"} · ${open} open`;
   paintIssueOutlines();  // re-apply teammates' issue outlines after re-render
 }
+/* ---------------- observation popup ---------------- */
+function openObs(issue){
+  $("#obsSub").textContent=`${issue.type} · ${issue.section}`;
+  $("#obsBody").textContent=issue.fix||"—";
+  $("#obsModal").classList.remove("hidden");
+}
+$("#closeObs")&&$("#closeObs").addEventListener("click",()=>$("#obsModal").classList.add("hidden"));
+$("#obsModal")&&$("#obsModal").addEventListener("click",e=>{if(e.target.id==="obsModal")$("#obsModal").classList.add("hidden");});
+
 /* ---------------- locate in document ---------------- */
 function openLocate(sub){$("#locateSub").textContent=sub||"";$("#locateModal").classList.remove("hidden");}
 $("#closeLocate")&&$("#closeLocate").addEventListener("click",()=>$("#locateModal").classList.add("hidden"));
@@ -1667,12 +1675,10 @@ async function run(){
     state.meta={client:$("#clientName").value.trim(),page:$("#pageName").value.trim(),url,cms};
     renderAll();
     const saveResult=await saveProjectRun();
-    const obs=state.allIssues.filter(i=>i.type==="Observation").length;
-    // A save failure is appended to the persistent run-note text, not just a
+    // A save failure is shown in the persistent run-note text, not just a
     // toast — the "QA complete" toast right below would otherwise instantly
     // replace a "could not save" toast before anyone could read it.
-    const saveWarning=saveResult.ok?"":` · ⚠ could not save to History (${saveResult.error})`;
-    $("#runNote").textContent=`Done · ${cms} · ${page.ctas.length} CTAs · ${page.links.length} links${obs?` · ${obs} observation${obs===1?"":"s"}`:""}${state.docFile?` · saved as "${state.docFile.name}"`:""}${saveWarning}`;
+    $("#runNote").textContent=saveResult.ok?"":`⚠ could not save to History (${saveResult.error})`;
     toast(`QA complete — ${countType("all")} issues`);
   }catch(err){
     if(err.message==="Cancelled by user."){$("#runNote").textContent="Cancelled.";toast("QA check cancelled");}
@@ -1884,7 +1890,7 @@ async function renderHistoryBody(){
     const deltaCls=delta==null?"flat":delta>0?"up":delta<0?"down":"flat";
     const deltaTxt=delta==null?"First revision":(delta>0?"▲ +"+delta:delta<0?"▼ "+delta:"No change")+" vs. previous";
     return `<div class="run-row${i===0?' current':''}" data-run="${r.id}">
-      <div class="run-summary" data-toggle="${r.id}">
+      <div class="run-summary">
         <div class="run-when"><div class="d">${fmtDate(r.ran_at)}</div><div class="t">${new Date(r.ran_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div></div>
         <div class="run-score ${runScoreClass(r.score)}">${r.score??"—"}%</div>
         <div class="run-issues">${r.issues_total} issue${r.issues_total===1?"":"s"}</div>
@@ -1892,30 +1898,29 @@ async function renderHistoryBody(){
         <div class="run-by" title="${r.ran_by?esc(r.ran_by):'—'}">${r.ran_by?esc(r.ran_by):'<span class="muted">—</span>'}</div>
         <div class="run-delta ${deltaCls}">${deltaTxt}</div>
         ${i===0?'<span class="run-current-tag">Actual</span>':''}
-        <div class="run-toggle"><svg class="ico" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>Ver detalle</div>
+        <button class="run-dl-btn" data-dl="${r.id}" title="Download this run's report"><svg class="ico" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
       </div>
-      <div class="run-detail"></div>
     </div>`;
   }).join("");
-  list.querySelectorAll("[data-toggle]").forEach(el=>el.addEventListener("click",()=>toggleRunDetail(el.closest(".run-row"),+el.dataset.toggle)));
+  list.querySelectorAll("[data-dl]").forEach(b=>b.addEventListener("click",()=>downloadRunReport(+b.dataset.dl,state.runs.find(r=>r.id===+b.dataset.dl))));
 }
-async function toggleRunDetail(row,runId){
-  const open=row.classList.toggle("open");
-  if(!open)return;
-  const detail=row.querySelector(".run-detail");
-  if(row.dataset.loaded){return;}
-  detail.innerHTML=`<div class="hist-loading">Loading…</div>`;
+// Downloads a CSV of that run's issues (the "what was worked on" detail) and,
+// if the run has a saved approved-copy document, also opens it in a new tab —
+// replaces the old inline expandable table, which was too much content to show
+// directly in the history popup.
+async function downloadRunReport(runId,r){
   try{
     const run=state.runDetails[runId]||(state.runDetails[runId]=await apiGet(`/projects/${state.projectId}/runs/${runId}`));
-    row.dataset.loaded="1";
+    if(run.doc_filename)window.open(`${API_BASE}/projects/${state.projectId}/runs/${runId}/document`,"_blank","noopener");
     const issues=(run.issues||[]).filter(i=>i.type!=="Observation");
-    const rows=issues.length?issues.map(i=>`<tr><td>${esc(i.section)}</td><td><span class="type-pill">${esc(i.type)}</span></td><td>${i.approved==="—"?"—":esc(i.approved)}</td><td class="cur">${i.current==="—"?"—":esc(i.current)}</td></tr>`).join(""):`<tr><td colspan="4" class="no-rows">No issues in this run.</td></tr>`;
-    const downloadHtml=run.doc_filename
-      ?`<a class="run-download" href="${API_BASE}/projects/${state.projectId}/runs/${runId}/document" target="_blank" rel="noopener"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download ${esc(run.doc_filename)}</a>`
-      :'<span class="muted">No document saved for this run</span>';
-    detail.innerHTML=`<div class="readonly-tag"><span><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Snapshot of that run — read-only${run.ran_by?` · By ${esc(run.ran_by)}`:""}</span>${downloadHtml}</div>
-      <table class="detail-table"><thead><tr><th>Section</th><th>Type</th><th>Approved</th><th>Current</th></tr></thead><tbody>${rows}</tbody></table>`;
-  }catch(e){detail.innerHTML=`<div class="hist-empty">Could not load this run: ${esc(e.message||String(e))}</div>`;}
+    const header=["Section","Issue Type","Approved Copy","Current Page Copy","Observations"];
+    const rows=issues.map(i=>[i.section,i.type,i.approved,i.current,i.fix]);
+    const csv=[header,...rows].map(row=>row.map(c=>`"${String(c??"").replace(/"/g,'""')}"`).join(",")).join("\r\n");
+    const blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8;"});
+    const a=document.createElement("a");a.href=URL.createObjectURL(blob);
+    a.download=`${(state.meta.client||"copy").replace(/\s+/g,"_")}_run_${fmtDate(run.ran_at||(r&&r.ran_at)).replace(/\s+/g,"-")}.csv`;a.click();
+    toast("Report downloaded");
+  }catch(e){toast("Could not load this run: "+(e.message||e));}
 }
 $("#historyTrigger").addEventListener("click",()=>{$("#historyModal").classList.remove("hidden");renderHistoryBody();});
 $("#closeHistory").addEventListener("click",()=>$("#historyModal").classList.add("hidden"));
