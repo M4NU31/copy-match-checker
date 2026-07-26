@@ -821,13 +821,22 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 return self._send(404, "application/json", json.dumps({"error": "Project not found"}).encode("utf-8"))
             # Every run also lands as a new, immutable project_runs row — the
             # history/version trail. Never updated afterward, unlike `projects`.
-            db_query(
+            # RETURNING id so the client can pin later status PATCHes to THIS
+            # exact run (see handle_issue_toggle) instead of "whatever run is
+            # currently newest" — that was racy: switching to check another
+            # page (creating a newer run) while a status PATCH for the OLDER
+            # run was still in flight made it silently mirror onto the wrong,
+            # unrelated run (no matching issue id there, so nothing happened).
+            run_row = db_query(
                 """INSERT INTO project_runs (project_id, site_name, page_name, page_url, score, issues,
                     doc_filename, doc_content_type, doc_bytes, ran_by)
-                   VALUES (%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s,%s)""",
+                   VALUES (%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s,%s) RETURNING id""",
                 (pid, site_name, page_name, page_url, score, json.dumps(issues),
-                 doc_filename, doc_content_type, doc_bytes, ran_by))
-            self._send(200, "application/json", json.dumps(_project_full(row)).encode("utf-8"))
+                 doc_filename, doc_content_type, doc_bytes, ran_by),
+                fetch="one")
+            resp = _project_full(row)
+            resp["run_id"] = run_row[0] if run_row else None
+            self._send(200, "application/json", json.dumps(resp).encode("utf-8"))
         except Exception as e:  # noqa: BLE001
             self._send(502, "application/json", json.dumps({"error": str(e)}).encode("utf-8"))
 
@@ -843,10 +852,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             runs = []
             for (rid, ran_at, score, issues, doc_filename, ran_by, page_url) in rows:
                 issues = issues or []
-                total = len([i for i in issues if isinstance(i, dict) and i.get("type") != "Observation"])
+                # live_score is the same "score interpolates toward 100% as issues
+                # get marked Done" formula used everywhere else (dashboard cards,
+                # the live project view) — without it, this list showed the raw
+                # AI comparison score forever, which reads as "nothing was ever
+                # resolved" even after every issue in that run was marked Done.
+                total, resolved, live = _issue_stats(issues, score)
                 runs.append({
                     "id": rid, "ran_at": ran_at.isoformat() if ran_at else None,
-                    "score": score, "issues_total": total, "doc_filename": doc_filename,
+                    "score": score, "live_score": live, "issues_total": total,
+                    "issues_resolved": resolved, "doc_filename": doc_filename,
                     "ran_by": ran_by or None, "page_url": page_url,
                 })
             self._send(200, "application/json", json.dumps({"runs": runs}).encode("utf-8"))
@@ -865,10 +880,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if not row:
                 return self._send(404, "application/json", json.dumps({"error": "Run not found"}).encode("utf-8"))
             (rid, ran_at, site_name, page_name, page_url, score, issues, doc_filename, ran_by) = row
+            issues = issues or []
+            _, _, live = _issue_stats(issues, score)
             self._send(200, "application/json", json.dumps({
                 "id": rid, "ran_at": ran_at.isoformat() if ran_at else None,
                 "site_name": site_name, "page_name": page_name, "page_url": page_url,
-                "score": score, "issues": issues or [], "doc_filename": doc_filename,
+                "score": score, "live_score": live, "issues": issues, "doc_filename": doc_filename,
                 "ran_by": ran_by or None,
             }).encode("utf-8"))
         except Exception as e:  # noqa: BLE001
@@ -933,6 +950,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             payload = json.loads(raw.decode("utf-8"))
             status = payload.get("status")
             done = bool(payload.get("done"))
+            run_id_hint = payload.get("run_id")
             row = db_query("SELECT issues FROM projects WHERE id=%s", (pid,), fetch="one")
             if not row:
                 return self._send(404, "application/json", json.dumps({"error": "Project not found"}).encode("utf-8"))
@@ -947,16 +965,28 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                         issue["done"] = done
                     found = True
             db_query("UPDATE projects SET issues=%s::jsonb, updated_at=now() WHERE id=%s", (json.dumps(issues), pid))
-            # Also mirror the status onto the latest saved run (project_runs is a
-            # frozen snapshot per run, so once a NEWER run supersedes this one the
-            # status is permanently locked in — this is what lets "Review overview"
-            # show the final status issues were left in for that run, not just the
-            # live/current project).
-            latest_run = db_query(
-                "SELECT id, issues FROM project_runs WHERE project_id=%s ORDER BY ran_at DESC LIMIT 1",
-                (pid,), fetch="one")
-            if latest_run:
-                run_id, run_issues = latest_run
+            # Also mirror the status onto the run this status change actually belongs
+            # to (project_runs is a frozen snapshot per run, so once a NEWER run
+            # supersedes it the status is permanently locked in — this is what lets
+            # "Review overview" show the final status issues were left in for that
+            # run). The frontend passes run_id (the run active when the check was
+            # made) so this targets the RIGHT run even if the user has since
+            # switched to checking a different page/run — falling back to "latest
+            # by ran_at" only when no run_id is given (older client, or no run yet).
+            # Guessing "latest" unconditionally was racy: a status PATCH for an
+            # older run that was still in flight when a NEWER run got created would
+            # silently mirror onto that unrelated newer run instead (no matching
+            # issue id there, so it just silently did nothing).
+            if run_id_hint is not None:
+                target_run = db_query(
+                    "SELECT id, issues FROM project_runs WHERE id=%s AND project_id=%s",
+                    (run_id_hint, pid), fetch="one")
+            else:
+                target_run = db_query(
+                    "SELECT id, issues FROM project_runs WHERE project_id=%s ORDER BY ran_at DESC LIMIT 1",
+                    (pid,), fetch="one")
+            if target_run:
+                run_id, run_issues = target_run
                 run_issues = run_issues or []
                 run_changed = False
                 for issue in run_issues:

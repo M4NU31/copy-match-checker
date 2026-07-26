@@ -592,7 +592,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10az · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10bb · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -1456,7 +1456,7 @@ function closeStatusMenu(){_statusMenu.classList.add("hidden");_statusTarget=nul
 function setIssueStatus(id,status){
   state.status.set(id,status);
   renderSummary();renderTable(state.activeFilter||"all");
-  if(state.projectId)apiPatch(`/projects/${state.projectId}/issues/${encodeURIComponent(id)}`,{status}).catch(e=>toast("Could not save: "+(e.message||e)));
+  if(state.projectId)apiPatch(`/projects/${state.projectId}/issues/${encodeURIComponent(id)}`,{status,run_id:state.currentRunId}).catch(e=>toast("Could not save: "+(e.message||e)));
 }
 _statusMenu.addEventListener("click",e=>{const o=e.target.closest(".status-opt");if(!o||!_statusTarget)return;setIssueStatus(_statusTarget,o.dataset.st);closeStatusMenu();});
 $("#issuesBody").addEventListener("click",e=>{const b=e.target.closest(".status-btn");if(b){e.stopPropagation();openStatusMenu(b,b.dataset.id);}});
@@ -1759,10 +1759,16 @@ async function saveProjectRun(){
     if(state.docFile){
       document={filename:state.docFile.name,content_type:mimeFor(state.docFile.name),data_base64:await fileToBase64(state.docFile),url:state.docUrl||null};
     }
-    await apiPut(`/projects/${state.projectId}/run`,{
+    const saved=await apiPut(`/projects/${state.projectId}/run`,{
       site_name:state.meta.client,page_name:state.meta.page,page_url:state.meta.url,
       score:state.score,issues:state.issues,document,ran_by:getUserName(),
     });
+    // Pin later status changes to THIS run — see setIssueStatus. Without this,
+    // the backend had to guess "whichever run is newest," which broke if the
+    // user switched to checking a different page before every status PATCH
+    // for this run had finished (the guess would then land on the wrong,
+    // unrelated newer run and silently do nothing).
+    state.currentRunId=saved&&saved.run_id!=null?saved.run_id:null;
     loadRuns();  // refresh the History button's count + list in the background
     return {ok:true};
   }catch(e){return {ok:false,error:e.message||String(e)};}
@@ -1823,7 +1829,7 @@ $("#backToProjects").addEventListener("click",()=>{goDashboard();});
 function resetToolState(){
   state.approvedText="";state.approvedBlocks=[];state.pages=[];state.issues=[];state.allIssues=[];state.status=new Map();
   state.docKind=null;state.pdfDoc=null;state.pdfLines=[];state.docText="";state.isDocx=false;state.score=undefined;
-  state.approvedCount=undefined;state.pageCount=undefined;state.meta={};state.docFile=null;state.docUrl=null;state.docComments=[];state.runs=[];state.runDetails={};
+  state.approvedCount=undefined;state.pageCount=undefined;state.meta={};state.docFile=null;state.docUrl=null;state.docComments=[];state.runs=[];state.runDetails={};state.currentRunId=null;
   $("#historyTrigger").classList.add("hidden");$("#resetBtn").classList.add("hidden");$("#projectDocRow").classList.add("hidden");$("#docComments").classList.add("hidden");$("#historyCount").textContent="0";$("#historyModal").classList.add("hidden");
   $("#clientName").value="";$("#pageName").value="";$("#pageUrl").value="";
   fileInput.value="";$("#dropFilled").classList.add("hidden");$("#dropEmpty").classList.remove("hidden");
@@ -1935,27 +1941,12 @@ async function renderHistoryBody(){
   const body=$("#historyBody");
   $("#historySub").textContent=`${state.meta&&state.meta.client||"—"} — ${state.runs.length} run${state.runs.length===1?"":"s"} recorded`;
   if(!state.runs.length){body.innerHTML=`<div class="hist-empty">No runs saved for this project yet — click "Check" to start the history.</div>`;return;}
-  const chrono=[...state.runs].reverse();  // oldest -> newest, for the chart
+  // The "Match score over time" sparkline used to render here — removed per
+  // request but deliberately NOT deleted: buildSparkline() and its .spark-*
+  // CSS are still intact below/in the stylesheet, unused, in case it comes
+  // back later. To restore: re-add the .spark-wrap block (see git history for
+  // this commit) and call buildSparkline(body,[...state.runs].reverse()).
   body.innerHTML=`
-    <div class="spark-wrap">
-      <div class="spark-top"><span class="lbl">Match score over time</span>
-        <span class="now">${state.runs[0].score??"—"}<span class="unit">% · last run</span></span></div>
-      <div style="position:relative;">
-        <svg class="spark-svg" viewBox="0 0 640 120" preserveAspectRatio="none">
-          <defs><linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#ff1449" stop-opacity="0.28"/><stop offset="100%" stop-color="#ff1449" stop-opacity="0"/>
-          </linearGradient></defs>
-          <g id="sparkGrid" class="spark-grid"></g>
-          <path class="spark-area" id="sparkArea"></path>
-          <path class="spark-line" id="sparkLine"></path>
-          <line class="crosshair" id="crosshair" x1="0" y1="2" x2="0" y2="120"></line>
-          <g id="sparkDots"></g>
-        </svg>
-        <div class="spark-tooltip"></div>
-        <div class="spark-endlabel-html" id="sparkEndLabel"></div>
-      </div>
-      <svg class="spark-axis" width="100%" height="16" style="display:block;"><g id="sparkAxis"></g></svg>
-    </div>
     <div class="run-head">
       <div class="run-date">Date</div>
       <div class="run-time">Time</div>
@@ -1967,14 +1958,13 @@ async function renderHistoryBody(){
       <div></div>
     </div>
     <div class="run-list" id="runList"></div>`;
-  buildSparkline(body,chrono);
   const list=$("#runList");
   list.innerHTML=state.runs.map((r,i)=>{
     return `<div class="run-row${i===0?' current':''}" data-run="${r.id}">
       <div class="run-summary">
         <div class="run-date">${fmtDate(r.ran_at)}</div>
         <div class="run-time">${new Date(r.ran_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>
-        <div class="run-score-col"><div class="run-score ${runScoreClass(r.score)}">${r.score??"—"}%</div></div>
+        <div class="run-score-col"><div class="run-score ${runScoreClass(r.live_score??r.score)}" title="Original AI comparison score: ${r.score??"—"}%">${r.live_score??r.score??"—"}%</div></div>
         ${r.doc_filename
           ?`<button class="run-doc-btn" data-doc="${r.id}" title="Download ${esc(r.doc_filename)}"><svg class="ico" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg><span>${esc(r.doc_filename)}</span></button>`
           :`<div class="run-doc-btn" style="color:var(--muted); cursor:default;">No document</div>`}
@@ -2019,7 +2009,7 @@ async function openRevisionView(runId,r){
       <div class="rev-stat"><b>${stats.mismatch}</b><span>Mismatch</span></div>
       <div class="rev-stat"><b>${stats.extra}</b><span>Extra Copy</span></div>
       <div class="rev-stat"><b>${stats.cta}</b><span>CTA / Link</span></div>
-      <div class="rev-stat"><b>${run.score??"—"}%</b><span>Match Score</span></div>`;
+      <div class="rev-stat" title="Original AI comparison score: ${run.score??"—"}%"><b>${run.live_score??run.score??"—"}%</b><span>Match Score</span></div>`;
     const rows=(run.issues||[]).filter(i=>i.type!=="Observation");
     $("#revBody").innerHTML=rows.length?rows.map(i=>{
       const st=i.status||null;
