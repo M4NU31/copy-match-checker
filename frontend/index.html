@@ -507,7 +507,10 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
         </button>
       </div>
 
-      <div class="status" id="approvedStatus">No approved copy loaded yet.</div>
+      <!-- Status message box removed from this card per request, pending a
+           better home for it elsewhere. setStatus() still runs everywhere it
+           did before (guarded to no-op without #approvedStatus) so nothing
+           else needs to change when it comes back. -->
 
       <div class="saved-doc hidden" id="projectDocRow">
         <svg class="ico ico-sm" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -593,7 +596,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10bd · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10be · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -1596,7 +1599,7 @@ function copyReport(){
 
 /* ---------------- UI wiring ---------------- */
 function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.remove("hidden");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.add("hidden"),2300);}
-function setStatus(msg,cls){const el=$("#approvedStatus");el.textContent=msg;el.className="status"+(cls?" "+cls:"");}
+function setStatus(msg,cls){const el=$("#approvedStatus");if(!el)return;el.textContent=msg;el.className="status"+(cls?" "+cls:"");}
 
 const dz=$("#dropzone"),fileInput=$("#fileInput");
 dz.addEventListener("click",()=>fileInput.click());
