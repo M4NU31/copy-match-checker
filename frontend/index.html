@@ -106,19 +106,26 @@ select{appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='h
 .drive-box{background:transparent; font:inherit; color:var(--text);}
 .drive-box.busy{pointer-events:none; opacity:.6;}
 @media (max-width:640px){.picker-row{flex-direction:column;}}
-/* Approved-copy flash: shown the instant a file finishes loading, then fades
-   to reveal the box underneath — the green check confirms "this is loaded,
-   move on" without needing a status line. Outline style (dashed ring, no
-   fill) with the check drawn in the same color/weight as the ring; ring and
-   check fade in one after the other, no scale/rotate — the quietest of the
+/* Approved-copy flash: shown the instant a load attempt settles — a green
+   check when the file parsed fine, a red X (via .is-error) when it didn't —
+   then fades to reveal the box underneath. Outline style (dashed ring, no
+   fill) with the mark drawn in the same color/weight as the ring; ring and
+   mark fade in one after the other, no scale/rotate — the quietest of the
    options reviewed. */
 .approved-flash{position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
   background:var(--input); border-radius:12px; opacity:0; pointer-events:none;}
 .approved-badge{width:80px; height:80px; display:flex; align-items:center; justify-content:center;}
 .approved-badge svg{width:80px; height:80px; overflow:visible;}
 .approved-ring{fill:none; stroke:#2fd6a6; stroke-width:1.2; stroke-dasharray:2.4 2.2; opacity:0; transition:opacity .5s ease;}
-.approved-check{fill:none; stroke:#2fd6a6; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; opacity:0; transition:opacity .5s ease .3s;}
-.approved-flash.show .approved-ring,.approved-flash.show .approved-check{opacity:1;}
+.approved-check,.approved-x line{stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round;}
+.approved-check{fill:none; stroke:#2fd6a6; opacity:0; transition:opacity .5s ease .3s;}
+.approved-x line{stroke:#2fd6a6;}
+.approved-x{opacity:0; transition:opacity .5s ease .3s;}
+.approved-flash.show .approved-ring{opacity:1;}
+.approved-flash.show:not(.is-error) .approved-check{opacity:1;}
+.approved-flash.show.is-error .approved-x{opacity:1;}
+.approved-flash.is-error .approved-ring{stroke:var(--pink-2);}
+.approved-flash.is-error .approved-x line{stroke:var(--pink-2);}
 /* Card 1 stretches to match card 2's height when card 2 grows (e.g. the page
    picker appears) — without this the extra height just sat empty below the
    upload/drive boxes instead of the boxes themselves growing into it. */
@@ -519,7 +526,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
               <button class="x" id="clearFile" title="Remove"><svg class="ico ico-sm" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
           </div>
-          <div class="approved-flash" id="dropApproved"><div class="approved-badge"><svg viewBox="0 0 24 24"><circle class="approved-ring" cx="12" cy="12" r="10"/><path class="approved-check" d="M7 12.3l3.2 3.2L17 8.5"/></svg></div></div>
+          <div class="approved-flash" id="dropApproved"><div class="approved-badge"><svg viewBox="0 0 24 24"><circle class="approved-ring" cx="12" cy="12" r="10"/><path class="approved-check" d="M7 12.3l3.2 3.2L17 8.5"/><g class="approved-x"><line x1="8.5" y1="8.5" x2="15.5" y2="15.5"/><line x1="15.5" y1="8.5" x2="8.5" y2="15.5"/></g></svg></div></div>
         </div>
         <div class="dropzone picker-box drive-box hidden" id="driveBox">
           <div id="driveEmpty">
@@ -534,7 +541,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
               <button class="x" id="clearDriveFile" title="Remove"><svg class="ico ico-sm" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
           </div>
-          <div class="approved-flash" id="driveApproved"><div class="approved-badge"><svg viewBox="0 0 24 24"><circle class="approved-ring" cx="12" cy="12" r="10"/><path class="approved-check" d="M7 12.3l3.2 3.2L17 8.5"/></svg></div></div>
+          <div class="approved-flash" id="driveApproved"><div class="approved-badge"><svg viewBox="0 0 24 24"><circle class="approved-ring" cx="12" cy="12" r="10"/><path class="approved-check" d="M7 12.3l3.2 3.2L17 8.5"/><g class="approved-x"><line x1="8.5" y1="8.5" x2="15.5" y2="15.5"/><line x1="15.5" y1="8.5" x2="8.5" y2="15.5"/></g></svg></div></div>
         </div>
       </div>
 
@@ -627,7 +634,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10bh · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10bi · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -1724,35 +1731,38 @@ function showLoadedIn(source,file){
     $("#driveFileName").textContent=file.name;$("#driveFileMeta").textContent=meta;
     $("#driveEmpty").classList.add("hidden");$("#driveFilled").classList.remove("hidden");
     $("#dropEmpty").classList.remove("hidden");$("#dropFilled").classList.add("hidden");
-    flashApproved("#driveApproved");
+    flashDocFlash("#driveApproved",true);
   }else{
     $("#fileName").textContent=file.name;$("#fileMeta").textContent=meta;
     $("#dropEmpty").classList.add("hidden");$("#dropFilled").classList.remove("hidden");
     $("#driveEmpty").classList.remove("hidden");$("#driveFilled").classList.add("hidden");
-    flashApproved("#dropApproved");
+    flashDocFlash("#dropApproved",true);
   }
 }
-// Shows a green check over the box the instant the doc is approved (parsed
-// successfully), then fades it out to reveal the box again underneath —
-// signals "this is good, move to the next step" without a status line.
-function flashApproved(sel){
+// Flashes over the box the instant a load attempt settles: a green check when
+// the doc parsed fine, a red X when it didn't — then fades either one out to
+// reveal the box underneath. Same ring+mark shape for both, just the color
+// and which mark (check vs X) is visible, via the .is-error class.
+function flashDocFlash(sel,ok){
   const el=$(sel);if(!el)return;
   el.classList.remove("show");
+  el.classList.toggle("is-error",!ok);
   el.style.transition="none";el.style.opacity="1";
   requestAnimationFrame(()=>requestAnimationFrame(()=>{
-    el.classList.add("show");  // ring fades in, check follows shortly after
+    el.classList.add("show");
     el.style.transition="opacity 1.3s ease .6s";el.style.opacity="0";
   }));
 }
 async function loadFile(file,docUrl,source){
   state.docUrl=docUrl||null;  // Google Drive view link when picked from Drive, else null
   state.docSource=source||"upload";
+  const flashSel=state.docSource==="drive"?"#driveApproved":"#dropApproved";
   state.docComments=[];renderDocComments();  // cleared on each load; set from the parse below
   try{
     setStatus("Parsing "+file.name+"…");
     const {rawText,raw,regionSEO,docKind,pdf,lines,comments}=await handleFile(file);
     if(!rawText||!rawText.trim()||!raw.length){state.approvedText="";state.approvedBlocks=[];state.pages=[];state.docFile=null;$("#dropEmpty").classList.remove("hidden");$("#dropFilled").classList.add("hidden");
-      hidePageSelect();setStatus("No usable copy found in this file. If it's a scanned/image PDF, the copy can't be read automatically.","err");toast("No readable copy in file");return;}
+      hidePageSelect();setStatus("No usable copy found in this file. If it's a scanned/image PDF, the copy can't be read automatically.","err");toast("No readable copy in file");flashDocFlash(flashSel,false);return;}
     state.approvedText=rawText;state.isDocx=file.name.toLowerCase().endsWith(".docx");state.docFile=file;state.docComments=comments||[];renderDocComments();
     state.docKind=docKind;state.pdfDoc=pdf||null;state.pdfLines=lines||[];state.docText=rawText;
     showLoadedIn(state.docSource,file);
@@ -1761,7 +1771,7 @@ async function loadFile(file,docUrl,source){
     renderPageSelect(state.pages);
     selectPage(0,{initial:true});
     autoSelectPageFromUrl();  // Page URL may already be filled in before the doc finished loading
-  }catch(err){state.approvedText="";state.approvedBlocks=[];state.pages=[];state.docFile=null;hidePageSelect();setStatus((err.message||"Could not read file")+". Use .pdf or .docx (not old .doc).","err");toast("Failed to read file");}
+  }catch(err){state.approvedText="";state.approvedBlocks=[];state.pages=[];state.docFile=null;hidePageSelect();setStatus((err.message||"Could not read file")+". Use .pdf or .docx (not old .doc).","err");toast("Failed to read file");flashDocFlash(flashSel,false);}
 }
 
 $("#howBtn").addEventListener("click",()=>$("#howModal").classList.remove("hidden"));
