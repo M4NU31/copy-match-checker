@@ -651,7 +651,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10bl · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10bm · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -1502,7 +1502,7 @@ function issueId(i){return i.type+"|"+i.section+"|"+(i.approved||"")+"|"+(i.curr
 // Per-issue status (state.status: id -> status). "done"/"solved_qa" are resolved.
 const STATUS_ORDER=["not_started","in_progress","done","solved_qa"];
 const STATUS_LABELS={not_started:"Not Started",in_progress:"In Progress",done:"Done",solved_qa:"Done in QA Tool"};
-const STATUS_COLORS={not_started:"#e8584b",in_progress:"#e8b018",done:"#15a37a",solved_qa:"#15a37a"};
+const STATUS_COLORS={not_started:"#ff1449",in_progress:"#e8b018",done:"#15a37a",solved_qa:"#15a37a"};
 const RESOLVED_STATUS=new Set(["done","solved_qa"]);
 function statusOf(id){return state.status.get(id)||"not_started";}
 function isResolvedId(id){return RESOLVED_STATUS.has(statusOf(id));}
