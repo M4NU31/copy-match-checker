@@ -236,8 +236,7 @@ select{appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='h
 .stat .num.bad{color:#FF1449;}
 .stat .lbl{font-size:11.5px; font-weight:500; color:#E8E2DF; margin-top:8px;}
 .tab-stat{cursor:pointer; transition:border-color .18s ease, background .18s ease, border-style .18s ease;}
-.tab-stat:hover{border-style:dashed; border-color:var(--pink); background:var(--pink-dim);}
-.tab-stat.active{border-color:var(--pink); background:var(--pink-dim);}
+.tab-stat:hover,.tab-stat.active{border-style:dashed; border-color:var(--pink); background:var(--pink-dim);}
 .c-total{color:var(--pink-2);} .c-red{color:var(--pink);} .c-amber{color:var(--amber);}
 .c-slate{color:var(--slate);} .c-green{color:var(--green);}
 
@@ -263,7 +262,7 @@ tr.done td{opacity:.4;}
 tr.done td.done-cell{opacity:1;}
 tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .done-cell{text-align:center;}
-.status-btn{display:inline-flex; align-items:center; gap:5px; background:transparent; color:var(--sc); border:1px solid var(--sc); border-radius:8px; font-size:11px;
+.status-btn{display:inline-flex; align-items:center; gap:5px; background:transparent; color:var(--sc); border:1px dashed var(--sc); border-radius:8px; font-size:11px;
   font-weight:600; padding:5px 9px 5px 11px; cursor:pointer; line-height:1.2; white-space:nowrap; transition:.15s;}
 .status-btn:hover{background:color-mix(in srgb, var(--sc) 14%, transparent);}
 .status-btn .caret{width:13px; height:13px; opacity:.8;}
@@ -274,14 +273,19 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .col-done{width:172px;} .col-sec{width:150px;} .col-type{width:124px;} .col-obs{width:110px;} .col-notes{width:90px;}
 .view-cell{text-align:center;}
 .obs-cell{text-align:center;}
-.obs-btn{background:transparent; border:none; color:#FF1449; cursor:pointer; padding:2px; display:inline-flex; vertical-align:-2px;}
-.obs-btn:hover{color:var(--pink-2);}
+.obs-btn{background:transparent; border:none; color:var(--muted); cursor:pointer; padding:2px; display:inline-flex; vertical-align:-2px; transition:color .15s ease;}
+.obs-btn:hover{color:var(--pink);}
 .obs-btn .ico{width:15px; height:15px;}
 .obs-sub{margin:-4px 0 10px;}
 .obs-body{white-space:pre-wrap; line-height:1.6; color:var(--text-2);}
 .notes-cell{text-align:center;}
-.notes-btn{background:transparent; border:none; color:#FF1449; cursor:pointer; padding:2px; display:inline-flex; align-items:center; gap:4px; vertical-align:-2px;}
-.notes-btn:hover{color:var(--pink-2);}
+.notes-btn{background:transparent; border:none; color:var(--muted); cursor:pointer; padding:2px; display:inline-flex; align-items:center; gap:4px; vertical-align:-2px; transition:color .15s ease;}
+.notes-btn:hover{color:var(--pink);}
+/* Stays colored (not gray) even without hovering when there's a note nobody
+   here has viewed yet — "seen" is tracked locally per-browser (see
+   notesSeenKey/markNotesSeen in the script) since there's no real per-user
+   auth yet to know who's actually read what. */
+.notes-btn.unread{color:var(--pink);}
 .notes-btn .ico{width:15px; height:15px;}
 .notes-btn .notes-count{font-size:11px; font-weight:700; font-variant-numeric:tabular-nums;}
 .notes-box{max-width:480px;}
@@ -664,7 +668,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
       <div class="table-wrap">
         <table>
           <colgroup><col class="col-sec"><col class="col-type"><col><col><col class="col-obs"><col class="col-notes"><col class="col-done"></colgroup>
-          <thead><tr><th>Section</th><th>Issue Type</th><th>Approved Copy</th><th>Current Page Copy</th><th>Observations</th><th>Notes</th><th class="done-cell">Status</th></tr></thead>
+          <thead><tr><th>Section</th><th>Issue Type</th><th>Approved Copy</th><th>Current Page Copy</th><th>Suggestion</th><th>Notes</th><th class="done-cell">Status</th></tr></thead>
           <tbody id="issuesBody"></tbody>
         </table>
       </div>
@@ -681,7 +685,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10bo · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10bq · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -772,7 +776,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 <!-- observation / suggested fix popup -->
 <div class="modal hidden" id="obsModal">
   <div class="modal-box">
-    <div class="modal-head"><h3><svg class="ico" viewBox="0 0 24 24"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-7 7c0 2.6 1.4 4.5 3 6 .8.8 1 1.3 1 2h6c0-.7.2-1.2 1-2 1.6-1.5 3-3.4 3-6a7 7 0 0 0-7-7z"/></svg>Observation</h3><button class="x" id="closeObs"><svg class="ico" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <div class="modal-head"><h3><svg class="ico" viewBox="0 0 24 24"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-7 7c0 2.6 1.4 4.5 3 6 .8.8 1 1.3 1 2h6c0-.7.2-1.2 1-2 1.6-1.5 3-3.4 3-6a7 7 0 0 0-7-7z"/><line x1="9.3" y1="10.5" x2="14.7" y2="10.5"/><line x1="9.6" y1="13" x2="14.4" y2="13"/></svg>Suggestion</h3><button class="x" id="closeObs"><svg class="ico" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
     <div class="obs-sub muted small" id="obsSub"></div>
     <p id="obsBody" class="obs-body"></p>
   </div>
@@ -1615,8 +1619,8 @@ function renderTable(filter){
     <td><span class="type-pill">${esc(i.type)}</span></td>
     <td class="cell-approved">${i.approved==="—"?'<span class="empty-dash">—</span>':esc(i.approved)}</td>
     <td class="cell-current">${i.current==="—"?'<span class="empty-dash">—</span>':esc(i.current)}</td>
-    <td class="obs-cell">${i.fix?`<button class="obs-btn" data-obs="${esc(id)}" title="View observation"><svg class="ico" viewBox="0 0 24 24"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-7 7c0 2.6 1.4 4.5 3 6 .8.8 1 1.3 1 2h6c0-.7.2-1.2 1-2 1.6-1.5 3-3.4 3-6a7 7 0 0 0-7-7z"/></svg></button>`:'<span class="empty-dash">—</span>'}</td>
-    <td class="notes-cell"><button class="notes-btn" data-notes="${esc(id)}" title="Notes"><svg class="ico" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-3.8 7 8.5 8.5 0 0 1-9 .8L3 21l1.8-5.2a8.5 8.5 0 0 1 .8-9 8.38 8.38 0 0 1 7-3.8h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>${nc?`<span class="notes-count">${nc}</span>`:""}</button></td>
+    <td class="obs-cell">${i.fix?`<button class="obs-btn" data-obs="${esc(id)}" title="View suggestion"><svg class="ico" viewBox="0 0 24 24"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-7 7c0 2.6 1.4 4.5 3 6 .8.8 1 1.3 1 2h6c0-.7.2-1.2 1-2 1.6-1.5 3-3.4 3-6a7 7 0 0 0-7-7z"/><line x1="9.3" y1="10.5" x2="14.7" y2="10.5"/><line x1="9.6" y1="13" x2="14.4" y2="13"/></svg></button>`:'<span class="empty-dash">—</span>'}</td>
+    <td class="notes-cell"><button class="notes-btn${hasUnreadNotes(id)?' unread':''}" data-notes="${esc(id)}" title="Notes"><svg class="ico" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-3.8 7 8.5 8.5 0 0 1-9 .8L3 21l1.8-5.2a8.5 8.5 0 0 1 .8-9 8.38 8.38 0 0 1 7-3.8h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>${nc?`<span class="notes-count">${nc}</span>`:""}</button></td>
     <td class="done-cell"><button class="status-btn" data-id="${esc(id)}" style="--sc:${STATUS_COLORS[st]}">${STATUS_LABELS[st]}<svg class="ico caret" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></button></td></tr>`;}).join("");
   body.querySelectorAll(".obs-btn").forEach(b=>b.addEventListener("click",()=>{
     const iss=state.allIssues.find(x=>issueId(x)===b.dataset.obs); if(iss)openObs(iss);
@@ -1639,6 +1643,20 @@ $("#obsModal")&&$("#obsModal").addEventListener("click",e=>{if(e.target.id==="ob
 
 /* ---------------- notes (per-issue comment thread) ---------------- */
 let _notesIssueId=null;
+// "Seen" tracking is local to this browser (there's no real per-user auth
+// yet — see the "Set your name" stopgap), keyed by project so switching
+// projects doesn't mix up counts. Not true multi-user read receipts, just
+// "have I personally opened this thread on this device before."
+function notesSeenKey(){return `cmc_notes_seen_${state.projectId}`;}
+function loadNotesSeen(){try{return JSON.parse(localStorage.getItem(notesSeenKey())||"{}");}catch(_){return {};}}
+function markNotesSeen(id,count){
+  const seen=loadNotesSeen();seen[id]=count;
+  try{localStorage.setItem(notesSeenKey(),JSON.stringify(seen));}catch(_){}
+}
+function hasUnreadNotes(id){
+  const seen=loadNotesSeen();
+  return (state.noteCounts.get(id)||0)>(seen[id]||0);
+}
 async function loadNoteCounts(){
   if(!state.projectId)return;
   try{
@@ -1672,6 +1690,8 @@ async function openNotes(issue){
   try{
     const r=await apiGet(`/projects/${state.projectId}/issues/${encodeURIComponent(id)}/notes`);
     renderNotesThread(r.notes||[]);
+    markNotesSeen(id,(r.notes||[]).length);
+    renderTable(state.activeFilter||"all");  // clears this row's unread red immediately
   }catch(e){$("#notesThread").innerHTML=`<div class="notes-empty">Could not load notes: ${esc(e.message||e)}</div>`;}
 }
 async function postNote(){
@@ -1684,6 +1704,7 @@ async function postNote(){
     const r=await apiGet(`/projects/${state.projectId}/issues/${encodeURIComponent(_notesIssueId)}/notes`);
     renderNotesThread(r.notes||[]);
     state.noteCounts.set(_notesIssueId,(r.notes||[]).length);
+    markNotesSeen(_notesIssueId,(r.notes||[]).length);  // posting counts as having seen the whole thread
     renderTable(state.activeFilter||"all");
   }catch(e){toast("Could not post note: "+(e.message||e));}
   finally{btn.disabled=false;}
@@ -1746,7 +1767,7 @@ async function locateIssue(issue){
 
 /* ---------------- export ---------------- */
 function exportCsv(){
-  const header=["Priority","Section","Issue Type","Approved Copy","Current Page Copy","Observations"];
+  const header=["Priority","Section","Issue Type","Approved Copy","Current Page Copy","Suggestion"];
   const rows=state.allIssues.map(i=>[i.priority,i.section,i.type,i.approved,i.current,i.fix]);
   const csv=[header,...rows].map(r=>r.map(c=>`"${String(c??"").replace(/"/g,'""')}"`).join(",")).join("\r\n");
   const blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8;"});const a=document.createElement("a");
@@ -1755,7 +1776,7 @@ function exportCsv(){
 }
 function copyReport(){
   let txt=`COPY MATCH CHECKER — QA REPORT\nClient: ${state.meta.client||"—"}  |  Page: ${state.meta.page||"—"}\nURL: ${state.meta.url}\nCMS: ${state.meta.cms}  |  Match score: ${state.score}%\nTotal issues: ${state.allIssues.length}\n${"=".repeat(50)}\n\n`;
-  state.allIssues.forEach((i,n)=>{txt+=`${n+1}. [${i.priority}] ${i.type} — ${i.section}\n`;if(i.approved!=="—")txt+=`   Approved:     ${i.approved}\n`;if(i.current!=="—")txt+=`   Current:      ${i.current}\n`;txt+=`   Observations: ${i.fix}\n\n`;});
+  state.allIssues.forEach((i,n)=>{txt+=`${n+1}. [${i.priority}] ${i.type} — ${i.section}\n`;if(i.approved!=="—")txt+=`   Approved:     ${i.approved}\n`;if(i.current!=="—")txt+=`   Current:      ${i.current}\n`;txt+=`   Suggestion:   ${i.fix}\n\n`;});
   navigator.clipboard.writeText(txt).then(()=>toast("Report copied to clipboard"),()=>toast("Copy failed — clipboard blocked"));
 }
 
