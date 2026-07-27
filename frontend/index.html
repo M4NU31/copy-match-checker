@@ -228,6 +228,12 @@ select{appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='h
 .summary{display:grid; grid-template-columns:repeat(6,1fr); gap:10px; margin-bottom:18px;}
 .stat{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:18px 12px; text-align:center;}
 .stat .num{font-size:27px; font-weight:800; line-height:1; color:#FF1449;}
+/* Match Score only: red/amber/green by how good the live score is (same
+   thresholds as runScoreClass — >=90 good, >=70 mid, else bad). The other
+   stat numbers (issue counts) never get these classes, so they stay pink. */
+.stat .num.good{color:var(--green);}
+.stat .num.mid{color:var(--amber);}
+.stat .num.bad{color:#FF1449;}
 .stat .lbl{font-size:11.5px; font-weight:500; color:#E8E2DF; margin-top:8px;}
 .tab-stat{cursor:pointer; transition:border-color .18s ease, background .18s ease, border-style .18s ease;}
 .tab-stat:hover{border-style:dashed; border-color:var(--pink); background:var(--pink-dim);}
@@ -265,7 +271,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .status-opt{display:flex; align-items:center; gap:9px; width:100%; background:transparent; border:none; color:var(--text); font-size:13px; text-align:left; padding:8px 10px; border-radius:7px; cursor:pointer;}
 .status-opt:hover{background:rgba(255,255,255,.06);}
 .status-opt .dot{width:10px; height:10px; border-radius:50%; flex:none;}
-.col-done{width:172px;} .col-sec{width:150px;} .col-type{width:124px;} .col-obs{width:110px;}
+.col-done{width:172px;} .col-sec{width:150px;} .col-type{width:124px;} .col-obs{width:110px;} .col-notes{width:90px;}
 .view-cell{text-align:center;}
 .obs-cell{text-align:center;}
 .obs-btn{background:transparent; border:none; color:#FF1449; cursor:pointer; padding:2px; display:inline-flex; vertical-align:-2px;}
@@ -273,6 +279,30 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .obs-btn .ico{width:15px; height:15px;}
 .obs-sub{margin:-4px 0 10px;}
 .obs-body{white-space:pre-wrap; line-height:1.6; color:var(--text-2);}
+.notes-cell{text-align:center;}
+.notes-btn{background:transparent; border:none; color:#FF1449; cursor:pointer; padding:2px; display:inline-flex; align-items:center; gap:4px; vertical-align:-2px;}
+.notes-btn:hover{color:var(--pink-2);}
+.notes-btn .ico{width:15px; height:15px;}
+.notes-btn .notes-count{font-size:11px; font-weight:700; font-variant-numeric:tabular-nums;}
+.notes-box{max-width:480px;}
+.notes-sub{margin:-4px 0 10px;}
+.notes-thread{max-height:280px; overflow-y:auto; display:flex; flex-direction:column; gap:14px; margin-bottom:14px;}
+.note-item{display:flex; gap:10px;}
+.note-avatar{width:26px; height:26px; border-radius:50%; background:var(--pink-dim); color:var(--pink-2); font-size:10.5px; font-weight:700;
+  display:flex; align-items:center; justify-content:center; flex:none;}
+.note-body{flex:1; min-width:0;}
+.note-top{display:flex; align-items:baseline; gap:8px; margin-bottom:2px;}
+.note-name{font-weight:600; font-size:12.5px; color:var(--text);}
+.note-time{font-size:11px; color:var(--muted);}
+.note-text{font-size:13px; color:var(--text-2); white-space:pre-wrap;}
+.notes-empty{color:var(--muted); font-size:13px; text-align:center; padding:14px 0;}
+.notes-reply{display:flex; gap:8px; align-items:flex-end; border-top:1px solid var(--border); padding-top:14px;}
+.notes-reply textarea{flex:1; background:var(--input); border:1px solid var(--border-2); border-radius:10px; padding:9px 11px;
+  font-size:13px; color:var(--text); font-family:inherit; resize:none; min-height:38px;}
+.notes-reply button{background:var(--pink); color:#fff; border:none; border-radius:9px; padding:9px 15px; font-size:12.5px;
+  font-weight:700; font-family:inherit; cursor:pointer; flex:none;}
+.notes-reply button:hover{background:var(--pink-2);}
+.notes-reply button:disabled{opacity:.5; cursor:default;}
 .type-pill{font-size:11px; padding:2px 8px; border-radius:6px; white-space:nowrap;
   background:var(--card-2); border:1px solid var(--border-2); color:var(--text-2);}
 .table-foot{display:flex; justify-content:space-between; align-items:center; margin-top:14px;}
@@ -633,8 +663,8 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
     <div class="card" style="margin-bottom:18px;">
       <div class="table-wrap">
         <table>
-          <colgroup><col class="col-sec"><col class="col-type"><col><col><col class="col-obs"><col class="col-done"></colgroup>
-          <thead><tr><th>Section</th><th>Issue Type</th><th>Approved Copy</th><th>Current Page Copy</th><th>Observations</th><th class="done-cell">Status</th></tr></thead>
+          <colgroup><col class="col-sec"><col class="col-type"><col><col><col class="col-obs"><col class="col-notes"><col class="col-done"></colgroup>
+          <thead><tr><th>Section</th><th>Issue Type</th><th>Approved Copy</th><th>Current Page Copy</th><th>Observations</th><th>Notes</th><th class="done-cell">Status</th></tr></thead>
           <tbody id="issuesBody"></tbody>
         </table>
       </div>
@@ -651,7 +681,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10bm · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10bo · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -742,9 +772,22 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 <!-- observation / suggested fix popup -->
 <div class="modal hidden" id="obsModal">
   <div class="modal-box">
-    <div class="modal-head"><h3><svg class="ico" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Observation</h3><button class="x" id="closeObs"><svg class="ico" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <div class="modal-head"><h3><svg class="ico" viewBox="0 0 24 24"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-7 7c0 2.6 1.4 4.5 3 6 .8.8 1 1.3 1 2h6c0-.7.2-1.2 1-2 1.6-1.5 3-3.4 3-6a7 7 0 0 0-7-7z"/></svg>Observation</h3><button class="x" id="closeObs"><svg class="ico" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
     <div class="obs-sub muted small" id="obsSub"></div>
     <p id="obsBody" class="obs-body"></p>
+  </div>
+</div>
+
+<!-- per-issue notes / comment thread -->
+<div class="modal hidden" id="notesModal">
+  <div class="modal-box notes-box">
+    <div class="modal-head"><h3><svg class="ico" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-3.8 7 8.5 8.5 0 0 1-9 .8L3 21l1.8-5.2a8.5 8.5 0 0 1 .8-9 8.38 8.38 0 0 1 7-3.8h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>Notes</h3><button class="x" id="closeNotes"><svg class="ico" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <div class="notes-sub muted small" id="notesSub"></div>
+    <div class="notes-thread" id="notesThread"></div>
+    <div class="notes-reply">
+      <textarea id="notesInput" placeholder="Add a note…"></textarea>
+      <button id="notesSend">Post</button>
+    </div>
   </div>
 </div>
 
@@ -760,7 +803,7 @@ const $=(s)=>document.querySelector(s), $$=(s)=>Array.from(document.querySelecto
 const API_BASE=(location.hostname==="localhost"||location.hostname==="127.0.0.1"||location.protocol==="file:")?"":(document.querySelector('meta[name="api-base"]')?.content||"").replace(/\/$/,"");
 const state={approvedText:"",approvedBlocks:[],pages:[],issues:[],allIssues:[],status:new Map(),
   docKind:null,pdfDoc:null,pdfLines:[],docText:"",isDocx:false,isRunning:false,runCtrl:null,
-  projectId:null,projects:[],runs:[],runDetails:{},docFile:null};
+  projectId:null,projects:[],runs:[],runDetails:{},docFile:null,noteCounts:new Map()};
 
 /* ---------------- projects API helpers ---------------- */
 async function apiCall(method,path,body){
@@ -1555,7 +1598,9 @@ function renderSummary(){const I=state.allIssues.filter(i=>!isResolvedId(issueId
   $("#sMismatch").textContent=I.filter(i=>i.type==="Copy Mismatch").length;
   $("#sExtra").textContent=I.filter(i=>i.type==="Extra Section").length;
   $("#sCta").textContent=I.filter(i=>i.type==="CTA Issue"||i.type==="Link Review").length;
-  $("#sMatch").textContent=liveScore()+"%";
+  const live=liveScore();
+  const sMatch=$("#sMatch");sMatch.textContent=live+"%";
+  sMatch.classList.remove("good","mid","bad");sMatch.classList.add(runScoreClass(live));
 }
 function renderTable(filter){
   const body=$("#issuesBody");let rows=state.allIssues;
@@ -1564,16 +1609,20 @@ function renderTable(filter){
   else rows=rows.filter(i=>i.type===filter);
   // keep priority order, but push resolved (checked) rows to the bottom
   rows=rows.map((i,idx)=>({i,idx,done:isResolvedId(issueId(i))})).sort((a,b)=>(a.done-b.done)||(a.idx-b.idx));
-  if(!rows.length){body.innerHTML=`<tr><td colspan="6" class="no-rows">✓ No issues in this category.</td></tr>`;$("#rowCount").textContent="0 issues";return;}
-  body.innerHTML=rows.map(({i,done})=>{const id=issueId(i),st=statusOf(id);return `<tr class="${done?'done':''}" data-issue-id="${esc(id)}">
+  if(!rows.length){body.innerHTML=`<tr><td colspan="7" class="no-rows">✓ No issues in this category.</td></tr>`;$("#rowCount").textContent="0 issues";return;}
+  body.innerHTML=rows.map(({i,done})=>{const id=issueId(i),st=statusOf(id);const nc=state.noteCounts.get(id)||0;return `<tr class="${done?'done':''}" data-issue-id="${esc(id)}">
     <td>${esc(i.section)}</td>
     <td><span class="type-pill">${esc(i.type)}</span></td>
     <td class="cell-approved">${i.approved==="—"?'<span class="empty-dash">—</span>':esc(i.approved)}</td>
     <td class="cell-current">${i.current==="—"?'<span class="empty-dash">—</span>':esc(i.current)}</td>
-    <td class="obs-cell">${i.fix?`<button class="obs-btn" data-obs="${esc(id)}" title="View observation"><svg class="ico" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>`:'<span class="empty-dash">—</span>'}</td>
+    <td class="obs-cell">${i.fix?`<button class="obs-btn" data-obs="${esc(id)}" title="View observation"><svg class="ico" viewBox="0 0 24 24"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-7 7c0 2.6 1.4 4.5 3 6 .8.8 1 1.3 1 2h6c0-.7.2-1.2 1-2 1.6-1.5 3-3.4 3-6a7 7 0 0 0-7-7z"/></svg></button>`:'<span class="empty-dash">—</span>'}</td>
+    <td class="notes-cell"><button class="notes-btn" data-notes="${esc(id)}" title="Notes"><svg class="ico" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-3.8 7 8.5 8.5 0 0 1-9 .8L3 21l1.8-5.2a8.5 8.5 0 0 1 .8-9 8.38 8.38 0 0 1 7-3.8h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>${nc?`<span class="notes-count">${nc}</span>`:""}</button></td>
     <td class="done-cell"><button class="status-btn" data-id="${esc(id)}" style="--sc:${STATUS_COLORS[st]}">${STATUS_LABELS[st]}<svg class="ico caret" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></button></td></tr>`;}).join("");
   body.querySelectorAll(".obs-btn").forEach(b=>b.addEventListener("click",()=>{
     const iss=state.allIssues.find(x=>issueId(x)===b.dataset.obs); if(iss)openObs(iss);
+  }));
+  body.querySelectorAll(".notes-btn").forEach(b=>b.addEventListener("click",()=>{
+    const iss=state.allIssues.find(x=>issueId(x)===b.dataset.notes); if(iss)openNotes(iss);
   }));
   const open=rows.filter(r=>!r.done).length;
   $("#rowCount").textContent=`${rows.length} row${rows.length===1?"":"s"} · ${open} open`;
@@ -1587,6 +1636,61 @@ function openObs(issue){
 }
 $("#closeObs")&&$("#closeObs").addEventListener("click",()=>$("#obsModal").classList.add("hidden"));
 $("#obsModal")&&$("#obsModal").addEventListener("click",e=>{if(e.target.id==="obsModal")$("#obsModal").classList.add("hidden");});
+
+/* ---------------- notes (per-issue comment thread) ---------------- */
+let _notesIssueId=null;
+async function loadNoteCounts(){
+  if(!state.projectId)return;
+  try{
+    const r=await apiGet(`/projects/${state.projectId}/notes/counts`);
+    state.noteCounts=new Map(Object.entries(r.counts||{}));
+    renderTable(state.activeFilter||"all");
+  }catch(_){}  // badges just stay at 0 — not worth surfacing a toast for
+}
+function initials(name){
+  const parts=(name||"").trim().split(/\s+/).filter(Boolean);
+  return parts.length?(parts[0][0]+(parts[1]?parts[1][0]:"")).toUpperCase():"?";
+}
+function renderNotesThread(notes){
+  const el=$("#notesThread");
+  el.innerHTML=notes.length?notes.map(n=>`
+    <div class="note-item">
+      <div class="note-avatar">${esc(initials(n.author))}</div>
+      <div class="note-body">
+        <div class="note-top"><span class="note-name">${esc(n.author||"Anonymous")}</span><span class="note-time">${n.created_at?new Date(n.created_at).toLocaleString():""}</span></div>
+        <div class="note-text">${esc(n.text)}</div>
+      </div>
+    </div>`).join(""):`<div class="notes-empty">No notes yet — be the first to add one.</div>`;
+  el.scrollTop=el.scrollHeight;
+}
+async function openNotes(issue){
+  const id=issueId(issue);
+  _notesIssueId=id;
+  $("#notesSub").textContent=`${issue.type} · ${issue.section}`;
+  $("#notesThread").innerHTML=`<div class="notes-empty">Loading…</div>`;
+  $("#notesModal").classList.remove("hidden");
+  try{
+    const r=await apiGet(`/projects/${state.projectId}/issues/${encodeURIComponent(id)}/notes`);
+    renderNotesThread(r.notes||[]);
+  }catch(e){$("#notesThread").innerHTML=`<div class="notes-empty">Could not load notes: ${esc(e.message||e)}</div>`;}
+}
+async function postNote(){
+  const text=$("#notesInput").value.trim();
+  if(!text||!_notesIssueId||!state.projectId)return;
+  const btn=$("#notesSend");btn.disabled=true;
+  try{
+    await apiPost(`/projects/${state.projectId}/issues/${encodeURIComponent(_notesIssueId)}/notes`,{author:getUserName(),text});
+    $("#notesInput").value="";
+    const r=await apiGet(`/projects/${state.projectId}/issues/${encodeURIComponent(_notesIssueId)}/notes`);
+    renderNotesThread(r.notes||[]);
+    state.noteCounts.set(_notesIssueId,(r.notes||[]).length);
+    renderTable(state.activeFilter||"all");
+  }catch(e){toast("Could not post note: "+(e.message||e));}
+  finally{btn.disabled=false;}
+}
+$("#closeNotes")&&$("#closeNotes").addEventListener("click",()=>$("#notesModal").classList.add("hidden"));
+$("#notesModal")&&$("#notesModal").addEventListener("click",e=>{if(e.target.id==="notesModal")$("#notesModal").classList.add("hidden");});
+$("#notesSend")&&$("#notesSend").addEventListener("click",postNote);
 
 /* ---------------- locate in document ---------------- */
 function openLocate(sub){$("#locateSub").textContent=sub||"";$("#locateModal").classList.remove("hidden");}
@@ -1850,6 +1954,7 @@ async function run(){
     state.pageCount=page.blocks.length;
     state.meta={client:$("#clientName").value.trim(),page:$("#pageName").value.trim(),url,cms};
     renderAll();
+    loadNoteCounts();  // refresh Notes badges in the background — same issue ids can carry notes across runs
     const saveResult=await saveProjectRun();
     // A save failure is shown in the persistent run-note text, not just a
     // toast — the "QA complete" toast right below would otherwise instantly
@@ -1965,6 +2070,7 @@ async function loadProject(id){
       renderAll();
       $("#runNote").textContent=`Showing the last run · ${new Date(p.last_run_at).toLocaleString()}`;
     }
+    loadNoteCounts();
     // Current approved document: any teammate can download it (and open the
     // original in Drive when it came from Drive) without re-uploading.
     const docRow=$("#projectDocRow");

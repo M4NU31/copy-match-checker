@@ -489,6 +489,23 @@ def init_db():
                 _used.add(_s)
                 cur.execute("UPDATE projects SET slug=%s WHERE id=%s", (_s, _pid))
             cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_slug ON projects(slug);")
+            # Notes/comments thread per issue. issue_id is the client's content
+            # hash (issueId() in index.html: type|section|approved|current), not
+            # a DB id — issues aren't rows of their own, they live inside
+            # projects.issues/project_runs.issues as JSON. A flat chronological
+            # list per issue (no parent_id) — "replies" just means "more entries
+            # in the same thread", not nested threading.
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS issue_notes (
+                    id SERIAL PRIMARY KEY,
+                    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                    issue_id TEXT NOT NULL,
+                    author TEXT NOT NULL DEFAULT '',
+                    text TEXT NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                );
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_issue_notes_lookup ON issue_notes(project_id, issue_id, created_at);")
         conn.commit()
     finally:
         conn.close()
@@ -600,6 +617,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         m = re.match(r"^/projects/(\d+)/runs/(\d+)$", self.path)
         if m:
             return self.handle_run_get(int(m.group(1)), int(m.group(2)))
+        m = re.match(r"^/projects/(\d+)/notes/counts$", self.path)
+        if m:
+            return self.handle_notes_counts(int(m.group(1)))
+        m = re.match(r"^/projects/(\d+)/issues/([^/]+)/notes$", self.path)
+        if m:
+            return self.handle_notes_list(int(m.group(1)), urllib.parse.unquote(m.group(2)))
         return super().do_GET()
 
     def do_POST(self):
@@ -612,6 +635,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         m = re.match(r"^/projects/(\d+)/reset$", self.path)
         if m:
             return self.handle_project_reset(int(m.group(1)))
+        m = re.match(r"^/projects/(\d+)/issues/([^/]+)/notes$", self.path)
+        if m:
+            return self.handle_notes_create(int(m.group(1)), urllib.parse.unquote(m.group(2)))
         return self._send(404, "text/plain", b"Not found")
 
     def do_PUT(self):
@@ -1002,6 +1028,65 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             total, resolved, _ = _issue_stats(issues, None)
             self._send(200, "application/json", json.dumps({
                 "ok": found, "issues_total": total, "issues_resolved": resolved,
+            }).encode("utf-8"))
+        except Exception as e:  # noqa: BLE001
+            self._send(502, "application/json", json.dumps({"error": str(e)}).encode("utf-8"))
+
+    def handle_notes_counts(self, pid):
+        """Bulk note counts for a whole project — one request instead of one
+        per visible issue, so the table can show a badge on the Notes column
+        without an N+1 fetch per row."""
+        if not self._secret_ok():
+            return
+        if not DB_AVAILABLE:
+            return self._db_unavailable()
+        try:
+            rows = db_query(
+                "SELECT issue_id, count(*) FROM issue_notes WHERE project_id=%s GROUP BY issue_id",
+                (pid,), fetch="all")
+            counts = {issue_id: n for (issue_id, n) in rows}
+            self._send(200, "application/json", json.dumps({"counts": counts}).encode("utf-8"))
+        except Exception as e:  # noqa: BLE001
+            self._send(502, "application/json", json.dumps({"error": str(e)}).encode("utf-8"))
+
+    def handle_notes_list(self, pid, issue_id):
+        if not self._secret_ok():
+            return
+        if not DB_AVAILABLE:
+            return self._db_unavailable()
+        try:
+            rows = db_query(
+                "SELECT id, author, text, created_at FROM issue_notes "
+                "WHERE project_id=%s AND issue_id=%s ORDER BY created_at ASC",
+                (pid, issue_id), fetch="all")
+            notes = [{"id": nid, "author": author, "text": text,
+                      "created_at": created_at.isoformat() if created_at else None}
+                     for (nid, author, text, created_at) in rows]
+            self._send(200, "application/json", json.dumps({"notes": notes}).encode("utf-8"))
+        except Exception as e:  # noqa: BLE001
+            self._send(502, "application/json", json.dumps({"error": str(e)}).encode("utf-8"))
+
+    def handle_notes_create(self, pid, issue_id):
+        if not self._secret_ok():
+            return
+        if not DB_AVAILABLE:
+            return self._db_unavailable()
+        length = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(length) if length else b"{}"
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+            author = (payload.get("author") or "").strip()
+            text = (payload.get("text") or "").strip()
+            if not text:
+                return self._send(400, "application/json", json.dumps({"error": "Note text is required"}).encode("utf-8"))
+            row = db_query(
+                "INSERT INTO issue_notes (project_id, issue_id, author, text) VALUES (%s,%s,%s,%s) "
+                "RETURNING id, author, text, created_at",
+                (pid, issue_id, author, text), fetch="one")
+            (nid, author, text, created_at) = row
+            self._send(200, "application/json", json.dumps({
+                "id": nid, "author": author, "text": text,
+                "created_at": created_at.isoformat() if created_at else None,
             }).encode("utf-8"))
         except Exception as e:  # noqa: BLE001
             self._send(502, "application/json", json.dumps({"error": str(e)}).encode("utf-8"))
