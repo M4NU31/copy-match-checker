@@ -685,7 +685,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10br · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10bt · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -704,7 +704,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 <div class="modal hidden" id="resetModal">
   <div class="modal-box">
     <div class="modal-head"><h3><svg class="ico" viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Reset issues</h3><button class="x" id="closeReset"><svg class="ico" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
-    <p class="muted">This clears all current issues and resets the counters to 0. The revision history is kept. This action can't be undone.</p>
+    <p class="muted">This clears all current issues and resets the counters to 0. The loaded document and Site Name stay, so you can keep comparing other pages of the same site. The revision history is kept. This action can't be undone.</p>
     <div class="modal-actions">
       <button class="btn btn-ghost" id="cancelReset">Cancel</button>
       <button class="btn btn-primary" id="confirmReset">Reset</button>
@@ -1930,8 +1930,8 @@ async function confirmResetProject(){
   try{
     btn.disabled=true;
     const pid=state.projectId;
-    if(pid)await apiPost(`/projects/${pid}/reset`,{});  // clears the projects row; project_runs (history) untouched
-    resetToolState();  // wipe issues, name/url fields, uploaded file, saved doc, comments — a clean project
+    if(pid)await apiPost(`/projects/${pid}/reset`,{});  // clears issues/page fields; project_runs (history) + the doc + site name are untouched
+    resetToolState({keepDocument:true});  // wipe issues + page name/URL, but keep the loaded doc/site name for comparing another page of the same site
     if(pid){$("#historyTrigger").classList.remove("hidden");$("#resetBtn").classList.remove("hidden");loadRuns();}  // stay in the project; history kept
     closeResetModal();toast("Project reset");
   }catch(e){alert("Could not reset: "+(e.message||e));}
@@ -1974,9 +1974,15 @@ async function run(){
     state.approvedCount=state.approvedBlocks.filter(b=>b.kind!=="alternate").length;
     state.pageCount=page.blocks.length;
     state.meta={client:$("#clientName").value.trim(),page:$("#pageName").value.trim(),url,cms};
+    // Save BEFORE rendering — saveProjectRun() is what sets state.currentRunId
+    // (the run any status click gets pinned to). Rendering first made the
+    // table clickable while state.currentRunId still pointed at the PREVIOUS
+    // run, so marking an issue Done fast enough (right as results appeared)
+    // silently mirrored the status onto the wrong, already-superseded run.
+    $("#runNote").textContent="Saving…";
+    const saveResult=await saveProjectRun();
     renderAll();
     loadNoteCounts();  // refresh Notes badges in the background — same issue ids can carry notes across runs
-    const saveResult=await saveProjectRun();
     // A save failure is shown in the persistent run-note text, not just a
     // toast — the "QA complete" toast right below would otherwise instantly
     // replace a "could not save" toast before anyone could read it.
@@ -2061,16 +2067,29 @@ $("#createProjectBtn").addEventListener("click",async()=>{
 });
 $("#backToProjects").addEventListener("click",()=>{goDashboard();});
 
-function resetToolState(){
-  state.approvedText="";state.approvedBlocks=[];state.pages=[];state.issues=[];state.allIssues=[];state.status=new Map();
-  state.docKind=null;state.pdfDoc=null;state.pdfLines=[];state.docText="";state.isDocx=false;state.score=undefined;
-  state.approvedCount=undefined;state.pageCount=undefined;state.meta={};state.docFile=null;state.docUrl=null;state.docSource=null;state.docComments=[];state.runs=[];state.runDetails={};state.currentRunId=null;
+// keepDocument: Reset uses this to clear issues/page fields while leaving the
+// loaded Source Document (and Site Name — same site, new page) alone, so the
+// team can keep comparing more pages of the same site without re-uploading
+// the same deck each time. loadProject() calls this with no options (full
+// wipe) since switching projects may mean a totally different document.
+function resetToolState(opts){
+  const keepDoc=!!(opts&&opts.keepDocument);
+  state.issues=[];state.allIssues=[];state.status=new Map();state.score=undefined;
+  state.approvedCount=undefined;state.pageCount=undefined;state.runs=[];state.runDetails={};state.currentRunId=null;
+  if(keepDoc){state.meta={client:state.meta.client};}
+  else{
+    state.approvedText="";state.approvedBlocks=[];state.pages=[];
+    state.docKind=null;state.pdfDoc=null;state.pdfLines=[];state.docText="";state.isDocx=false;
+    state.docFile=null;state.docUrl=null;state.docSource=null;state.docComments=[];state.meta={};
+    fileInput.value="";$("#dropFilled").classList.add("hidden");$("#dropEmpty").classList.remove("hidden");
+    $("#driveFilled").classList.add("hidden");$("#driveEmpty").classList.remove("hidden");
+    $("#dropzone").classList.remove("inactive");$("#driveBox").classList.remove("inactive");
+    hidePageSelect();setStatus("No approved copy loaded yet.");
+    $("#clientName").value="";
+  }
   $("#historyTrigger").classList.add("hidden");$("#resetBtn").classList.add("hidden");$("#projectDocRow").classList.add("hidden");$("#historyCount").textContent="0";$("#historyModal").classList.add("hidden");
-  $("#clientName").value="";$("#pageName").value="";$("#pageUrl").value="";
-  fileInput.value="";$("#dropFilled").classList.add("hidden");$("#dropEmpty").classList.remove("hidden");
-  $("#driveFilled").classList.add("hidden");$("#driveEmpty").classList.remove("hidden");
-  $("#dropzone").classList.remove("inactive");$("#driveBox").classList.remove("inactive");
-  hidePageSelect();setStatus("No approved copy loaded yet.");$("#runNote").textContent="";
+  $("#pageName").value="";$("#pageUrl").value="";
+  $("#runNote").textContent="";
   $("#results").classList.add("hidden");
 }
 async function loadProject(id){

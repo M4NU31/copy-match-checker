@@ -786,14 +786,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if not DB_AVAILABLE:
             return self._db_unavailable()
         try:
-            # Wipes the project's whole CURRENT state back to a clean project —
-            # issues, score, the name/URL fields, and the stored approved doc —
-            # but leaves project_runs untouched, so the revision history is kept.
-            # Does not insert a run row.
+            # Clears the CURRENT issues/score/page fields back to a clean slate —
+            # but leaves project_runs untouched (revision history is kept) AND
+            # leaves site_name + the stored approved doc alone. Resetting is for
+            # moving on to compare a DIFFERENT page of the SAME site with the
+            # SAME approved-copy doc, not for starting an unrelated project —
+            # re-uploading the same deck for every page it covers was the thing
+            # this was meant to remove friction from. Does not insert a run row.
             row = db_query(
                 f"""UPDATE projects SET issues='[]'::jsonb, score=NULL,
-                    site_name='', page_name='', page_url='', last_run_at=NULL,
-                    doc_filename=NULL, doc_content_type=NULL, doc_bytes=NULL, doc_url=NULL,
+                    page_name='', page_url='', last_run_at=NULL,
                     updated_at=now()
                     WHERE id=%s RETURNING {PROJECT_COLUMNS}""",
                 (pid,), fetch="one")
