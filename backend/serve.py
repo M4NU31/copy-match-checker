@@ -635,6 +635,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         m = re.match(r"^/projects/(\d+)/reset$", self.path)
         if m:
             return self.handle_project_reset(int(m.group(1)))
+        m = re.match(r"^/projects/(\d+)/delete$", self.path)
+        if m:
+            return self.handle_project_delete(int(m.group(1)))
         m = re.match(r"^/projects/(\d+)/issues/([^/]+)/notes$", self.path)
         if m:
             return self.handle_notes_create(int(m.group(1)), urllib.parse.unquote(m.group(2)))
@@ -802,6 +805,22 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if not row:
                 return self._send(404, "application/json", json.dumps({"error": "Project not found"}).encode("utf-8"))
             self._send(200, "application/json", json.dumps(_project_full(row)).encode("utf-8"))
+        except Exception as e:  # noqa: BLE001
+            self._send(502, "application/json", json.dumps({"error": str(e)}).encode("utf-8"))
+
+    def handle_project_delete(self, pid):
+        """Permanently removes the project — unlike /reset, this also drops
+        project_runs and issue_notes (both FK project_id ... ON DELETE CASCADE),
+        i.e. the whole revision history and comment threads go with it."""
+        if not self._secret_ok():
+            return
+        if not DB_AVAILABLE:
+            return self._db_unavailable()
+        try:
+            row = db_query("DELETE FROM projects WHERE id=%s RETURNING id", (pid,), fetch="one")
+            if not row:
+                return self._send(404, "application/json", json.dumps({"error": "Project not found"}).encode("utf-8"))
+            self._send(200, "application/json", json.dumps({"ok": True}).encode("utf-8"))
         except Exception as e:  # noqa: BLE001
             self._send(502, "application/json", json.dumps({"error": str(e)}).encode("utf-8"))
 

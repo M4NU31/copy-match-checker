@@ -365,6 +365,14 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .proj-card.add-card .proj-card-icon{background:transparent; border-style:dashed; color:inherit;}
 .proj-card.add-card:hover .proj-card-icon{border-color:var(--pink-2);}
 .proj-card.add-card h3{color:inherit;}
+.proj-card-wrap{position:relative;}
+.proj-delete{position:absolute; top:8px; right:8px; width:26px; height:26px; border-radius:7px;
+  background:var(--card-2); border:1px solid var(--border-2); color:var(--muted);
+  display:flex; align-items:center; justify-content:center; cursor:pointer;
+  opacity:0; transition:opacity .15s ease, color .15s ease, border-color .15s ease;}
+.proj-delete svg{width:13px; height:13px;}
+.proj-card-wrap:hover .proj-delete{opacity:1;}
+.proj-delete:hover{color:var(--pink-2); border-color:var(--pink);}
 .proj-empty,.proj-error,.proj-loading{color:var(--muted); text-align:center; padding:50px 20px; grid-column:1/-1;}
 .proj-error{color:var(--pink-2);}
 .proj-header{display:flex; align-items:center; gap:14px; margin-bottom:20px;}
@@ -685,7 +693,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10bt · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10bu · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -697,6 +705,18 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
     <div class="modal-head"><h3><svg class="ico" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New project</h3><button class="x" id="closeAddProject"><svg class="ico" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
     <label class="field"><span>Project name</span><input type="text" id="newProjectName" placeholder="e.g. Fortreum — Accreditations" /></label>
     <button class="btn btn-primary btn-lg" id="createProjectBtn">Create project</button>
+  </div>
+</div>
+
+<!-- delete project confirmation modal -->
+<div class="modal hidden" id="deleteProjectModal">
+  <div class="modal-box">
+    <div class="modal-head"><h3><svg class="ico" viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Delete project</h3><button class="x" id="closeDeleteProject"><svg class="ico" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <p class="muted">Delete "<strong id="deleteProjectName"></strong>"? This removes the project and its entire revision history — every saved run, document, and note. This can't be undone.</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="cancelDeleteProject">Cancel</button>
+      <button class="btn btn-primary" id="confirmDeleteProject">Delete</button>
+    </div>
   </div>
 </div>
 
@@ -2024,10 +2044,15 @@ async function saveProjectRun(){
    serves index.html for any path (SPA fallback); no router library. */
 const PROJ_CARD_ICON=`<svg class="ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>`;
 function projCardHtml(p){
-  return `<button class="proj-card" data-id="${p.id}" data-slug="${esc(p.slug||p.id)}" title="${esc(p.name)}">
-    <div class="proj-card-icon">${PROJ_CARD_ICON}</div>
-    <h3>${esc(p.name)}</h3>
-  </button>`;
+  return `<div class="proj-card-wrap">
+    <button class="proj-card" data-id="${p.id}" data-slug="${esc(p.slug||p.id)}" title="${esc(p.name)}">
+      <div class="proj-card-icon">${PROJ_CARD_ICON}</div>
+      <h3>${esc(p.name)}</h3>
+    </button>
+    <button class="proj-delete" data-id="${p.id}" data-name="${esc(p.name)}" title="Delete project">
+      <svg class="ico" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+    </button>
+  </div>`;
 }
 const ADD_CARD_HTML=`<button class="proj-card add-card" id="addProjCard" title="Add project">
   <div class="proj-card-icon"><svg class="ico" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
@@ -2039,6 +2064,7 @@ function renderProjGrid(){
   const emptyMsg=list.length?"":`<div class="proj-empty">${state.projects.length?"No projects match your search.":"No projects yet — click the + card to create the first one."}</div>`;
   grid.innerHTML=emptyMsg+list.map(projCardHtml).join("")+ADD_CARD_HTML;
   grid.querySelectorAll(".proj-card:not(.add-card)").forEach(c=>c.addEventListener("click",()=>{goProject(c.dataset.id,c.dataset.slug);}));
+  grid.querySelectorAll(".proj-delete").forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();openDeleteProjectModal(b.dataset.id,b.dataset.name);}));
   $("#addProjCard").addEventListener("click",openAddProjectModal);
 }
 async function loadProjects(){
@@ -2052,6 +2078,28 @@ async function loadProjects(){
   }
 }
 $("#projSearch").addEventListener("input",renderProjGrid);
+let _deleteProjectId=null;
+function openDeleteProjectModal(id,name){
+  _deleteProjectId=id;
+  $("#deleteProjectName").textContent=name;
+  $("#deleteProjectModal").classList.remove("hidden");
+}
+function closeDeleteProjectModal(){$("#deleteProjectModal").classList.add("hidden");_deleteProjectId=null;}
+$("#closeDeleteProject").addEventListener("click",closeDeleteProjectModal);
+$("#cancelDeleteProject").addEventListener("click",closeDeleteProjectModal);
+$("#deleteProjectModal").addEventListener("click",e=>{if(e.target.id==="deleteProjectModal")closeDeleteProjectModal();});
+$("#confirmDeleteProject").addEventListener("click",async()=>{
+  if(!_deleteProjectId)return;
+  const btn=$("#confirmDeleteProject");
+  try{
+    btn.disabled=true;
+    await apiPost(`/projects/${_deleteProjectId}/delete`,{});
+    closeDeleteProjectModal();
+    toast("Project deleted");
+    loadProjects();
+  }catch(e){alert("Could not delete project: "+(e.message||e));}
+  finally{btn.disabled=false;}
+});
 function openAddProjectModal(){$("#newProjectName").value="";$("#addProjectModal").classList.remove("hidden");$("#newProjectName").focus();}
 $("#addProjectBtn").addEventListener("click",openAddProjectModal);
 $("#closeAddProject").addEventListener("click",()=>$("#addProjectModal").classList.add("hidden"));
