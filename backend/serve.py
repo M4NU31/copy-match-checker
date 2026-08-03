@@ -632,9 +632,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self.handle_ai_segment()
         if self.path == "/projects":
             return self.handle_project_create()
-        m = re.match(r"^/projects/(\d+)/reset$", self.path)
-        if m:
-            return self.handle_project_reset(int(m.group(1)))
         m = re.match(r"^/projects/(\d+)/delete$", self.path)
         if m:
             return self.handle_project_delete(int(m.group(1)))
@@ -783,35 +780,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:  # noqa: BLE001
             self._send(502, "application/json", json.dumps({"error": str(e)}).encode("utf-8"))
 
-    def handle_project_reset(self, pid):
-        if not self._secret_ok():
-            return
-        if not DB_AVAILABLE:
-            return self._db_unavailable()
-        try:
-            # Clears the CURRENT issues/score/page fields back to a clean slate —
-            # but leaves project_runs untouched (revision history is kept) AND
-            # leaves site_name + the stored approved doc alone. Resetting is for
-            # moving on to compare a DIFFERENT page of the SAME site with the
-            # SAME approved-copy doc, not for starting an unrelated project —
-            # re-uploading the same deck for every page it covers was the thing
-            # this was meant to remove friction from. Does not insert a run row.
-            row = db_query(
-                f"""UPDATE projects SET issues='[]'::jsonb, score=NULL,
-                    page_name='', page_url='', last_run_at=NULL,
-                    updated_at=now()
-                    WHERE id=%s RETURNING {PROJECT_COLUMNS}""",
-                (pid,), fetch="one")
-            if not row:
-                return self._send(404, "application/json", json.dumps({"error": "Project not found"}).encode("utf-8"))
-            self._send(200, "application/json", json.dumps(_project_full(row)).encode("utf-8"))
-        except Exception as e:  # noqa: BLE001
-            self._send(502, "application/json", json.dumps({"error": str(e)}).encode("utf-8"))
-
     def handle_project_delete(self, pid):
-        """Permanently removes the project — unlike /reset, this also drops
-        project_runs and issue_notes (both FK project_id ... ON DELETE CASCADE),
-        i.e. the whole revision history and comment threads go with it."""
+        """Permanently removes the project, including project_runs and
+        issue_notes (both FK project_id ... ON DELETE CASCADE) — i.e. the whole
+        revision history and comment threads go with it. There is no separate
+        "reset" endpoint anymore; per-page tabs (see index.html) replaced the
+        old single-current-state-per-project model that reset used to clear."""
         if not self._secret_ok():
             return
         if not DB_AVAILABLE:
