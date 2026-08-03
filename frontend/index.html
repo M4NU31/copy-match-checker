@@ -733,7 +733,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10bw · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10bx · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -867,7 +867,7 @@ const $=(s)=>document.querySelector(s), $$=(s)=>Array.from(document.querySelecto
 const API_BASE=(location.hostname==="localhost"||location.hostname==="127.0.0.1"||location.protocol==="file:")?"":(document.querySelector('meta[name="api-base"]')?.content||"").replace(/\/$/,"");
 const state={approvedText:"",approvedBlocks:[],pages:[],issues:[],allIssues:[],status:new Map(),
   docKind:null,pdfDoc:null,pdfLines:[],docText:"",isDocx:false,isRunning:false,runCtrl:null,
-  projectId:null,projects:[],runs:[],runDetails:{},docFile:null,noteCounts:new Map(),
+  projectId:null,projectName:"",projects:[],runs:[],runDetails:{},docFile:null,noteCounts:new Map(),
   siteTabs:[],activeTabUrl:null};
 
 /* ---------------- projects API helpers ---------------- */
@@ -1959,7 +1959,25 @@ function flashDocFlash(sel,ok){
     el.style.transition="opacity 1.3s ease .6s";el.style.opacity="0";
   }));
 }
+// Soft safety net against uploading the wrong client's deck into an open
+// project (e.g. "Breach"'s copy while working inside "Credence"): compares
+// the project's name against the filename and warns — but never blocks
+// outright, since plenty of real filenames don't follow a strict convention.
+// Only checks the FIRST word of the project name (almost always the client
+// identifier, e.g. "Credence", "Fortreum") to keep false positives low.
+function projectNameMightMatchFile(projectName,fileName){
+  const norm=s=>(s||"").toLowerCase().replace(/\.[^.]+$/,"").replace(/[^a-z0-9]+/g," ").trim();
+  const proj=norm(projectName),file=norm(fileName);
+  if(!proj||!file)return true;
+  const firstWord=proj.split(" ")[0];
+  if(!firstWord||firstWord.length<3)return true;  // too short/generic to check reliably
+  return file.includes(firstWord);
+}
 async function loadFile(file,docUrl,source){
+  if(state.projectId&&state.projectName&&!projectNameMightMatchFile(state.projectName,file.name)){
+    const ok=confirm(`"${file.name}" doesn't look like it matches this project ("${state.projectName}"). Upload it anyway?`);
+    if(!ok)return;
+  }
   state.docUrl=docUrl||null;  // Google Drive view link when picked from Drive, else null
   state.docSource=source||"upload";
   const flashSel=state.docSource==="drive"?"#driveApproved":"#dropApproved";
@@ -2176,7 +2194,7 @@ function resetToolState(opts){
   else{
     state.approvedText="";state.approvedBlocks=[];state.pages=[];
     state.docKind=null;state.pdfDoc=null;state.pdfLines=[];state.docText="";state.isDocx=false;
-    state.docFile=null;state.docUrl=null;state.docSource=null;state.docComments=[];state.meta={};
+    state.docFile=null;state.docUrl=null;state.docSource=null;state.docComments=[];state.meta={};state.projectName="";
     fileInput.value="";$("#dropFilled").classList.add("hidden");$("#dropEmpty").classList.remove("hidden");
     $("#driveFilled").classList.add("hidden");$("#driveEmpty").classList.remove("hidden");
     $("#dropzone").classList.remove("inactive");$("#driveBox").classList.remove("inactive");
@@ -2195,7 +2213,7 @@ async function loadProject(id){
   $("#historyTrigger").classList.remove("hidden");$("#resetBtn").classList.remove("hidden");
   try{
     const p=await apiGet(`/projects/${id}`);
-    $("#projectTitleHeading").textContent=p.name;
+    $("#projectTitleHeading").textContent=p.name;state.projectName=p.name||"";
     $("#clientName").value=p.site_name||"";
     $("#pageName").value=p.page_name||"";
     $("#pageUrl").value=p.page_url||"";
