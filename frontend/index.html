@@ -685,11 +685,13 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
   </section>
 
   <!-- ============ PAGE TABS ============
-       One tab per distinct page URL checked in this project (built from the
-       run history — see buildSiteTabs()/renderPageTabs()). No tab is active by
-       default: a teammate who just opened the project sees only the buttons +
-       who's-here avatars, never the table another teammate has open — clicking
-       a tab is what actually loads its issues table below. -->
+       One tab per page checked recently (this visit) — added one at a time as
+       each Check completes, see addSiteTab()/renderPageTabs(). Older pages
+       stay out of this bar and are only browsable via History; the full
+       run/history record is unaffected. No tab is active by default either:
+       a teammate who just opened the project sees only the buttons + who's-
+       here avatars, never the table another teammate has open — clicking a
+       tab is what actually loads its issues table below. -->
   <section id="pageTabsSection" class="hidden">
     <h2 class="section-title">Pages checked</h2>
     <div class="page-tabs" id="pageTabs"></div>
@@ -731,7 +733,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10bv · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10bw · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -2041,9 +2043,10 @@ async function run(){
     $("#runNote").textContent="Saving…";
     const saveResult=await saveProjectRun();
     renderAll();
-    // The page you just checked becomes your own active tab — loadRuns() (kicked
-    // off inside saveProjectRun) will fill in the tab bar shortly after; this just
-    // makes sure it opens already pointed at the right one once it does.
+    // The page you just checked gets (or updates) its own tab and becomes the
+    // active one — tabs only grow this way, one at a time, as real Checks
+    // happen; older pages stay out of this bar and live in History instead.
+    addSiteTab(state.meta.url,state.meta.page,state.currentRunId);
     state.activeTabUrl=state.meta.url;renderPageTabs();
     rtSend({type:"page_focus",page_url:state.meta.url});
     loadNoteCounts();  // refresh Notes badges in the background — same issue ids can carry notes across runs
@@ -2197,8 +2200,10 @@ async function loadProject(id){
     $("#pageName").value=p.page_name||"";
     $("#pageUrl").value=p.page_url||"";
     // No auto-render here on purpose: which page's table (if any) is showing
-    // is per-teammate, local state — see the Page Tabs section. loadRuns()
-    // below builds the tab bar; the reviewer picks a tab to see its issues.
+    // is per-teammate, local state, and the tab bar itself starts empty on
+    // every load too — see addSiteTab()/the Page Tabs section. It fills back
+    // in as pages get (re-)checked during this visit; older ones stay in
+    // History rather than reappearing as tabs on their own.
     loadNoteCounts();
     // Current approved document: any teammate can download it (and open the
     // original in Drive when it came from Drive) without re-uploading.
@@ -2230,31 +2235,25 @@ async function loadRuns(){
     state.runs=data.runs||[];
     $("#historyCount").textContent=state.runs.length;
   }catch(e){state.runs=[];$("#historyCount").textContent="0";}
-  buildSiteTabs();renderPageTabs();
 }
 
-/* ---------------- page tabs (one per distinct page URL checked) ----------------
-   Built entirely from the run history already loaded above — no separate
-   endpoint needed. state.runs is ordered most-recent-first, so the first run
-   seen for a given page_url is that page's current (latest) state. Tabs are
-   deliberately NOT auto-selected on load (see #pageTabsSection markup): only
-   an explicit click loads a tab's table, so one teammate's open table is never
-   shown to another who just opened the project — they only see the buttons
-   and who else is currently on each page. */
-function buildSiteTabs(){
-  const seen=new Map();
-  for(const r of state.runs){
-    if(!r.page_url||seen.has(r.page_url))continue;
-    seen.set(r.page_url,r);
-  }
-  state.siteTabs=Array.from(seen.entries()).map(([url,r])=>({url,name:r.page_name||url,runId:r.id}));
-  // The active tab may have gotten a newer run (e.g. re-checked); keep it
-  // pinned to that page but pick up the fresh run id so status edits land
-  // on the right row.
-  if(state.activeTabUrl){
-    const t=state.siteTabs.find(t=>t.url===state.activeTabUrl);
-    if(t)state.currentRunId=t.runId;
-  }
+/* ---------------- page tabs (pages checked recently, this visit) ----------------
+   Tabs are NOT built from the full project_runs history — that stays exactly
+   what it always was, browsable only via History. state.siteTabs is session-
+   local: it starts empty every time the project is (re)opened and grows one
+   tab at a time, only as Checks actually happen (see addSiteTab(), called from
+   the run() flow below) — a project with years of history doesn't dump every
+   page it has ever seen onto this bar, just what's been checked recently.
+   Tabs are deliberately NOT auto-selected either (see #pageTabsSection
+   markup): only an explicit click loads a tab's table, so one teammate's open
+   table is never shown to another who just opened the project — they only
+   see the buttons and who else is currently on each page. */
+function addSiteTab(url,name,runId){
+  if(!url)return;
+  const t=state.siteTabs.find(t=>t.url===url);
+  if(t){t.runId=runId;if(name)t.name=name;}
+  else state.siteTabs.unshift({url,name:name||url,runId});
+  if(state.activeTabUrl===url)state.currentRunId=runId;
 }
 function tabInitials(name){return (name||"?").trim().split(/\s+/).map(w=>w[0]).slice(0,2).join("").toUpperCase();}
 // Singular/plural phrasing for the combined hover tooltip — see CLAUDE.md-adjacent
