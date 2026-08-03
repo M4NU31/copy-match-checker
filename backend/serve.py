@@ -998,55 +998,72 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             status = payload.get("status")
             done = bool(payload.get("done"))
             run_id_hint = payload.get("run_id")
-            row = db_query("SELECT issues FROM projects WHERE id=%s", (pid,), fetch="one")
-            if not row:
-                return self._send(404, "application/json", json.dumps({"error": "Project not found"}).encode("utf-8"))
-            issues = row[0] or []
-            found = False
-            for issue in issues:
-                if isinstance(issue, dict) and issue.get("id") == issue_id:
-                    if status is not None:
-                        issue["status"] = status
-                        issue["done"] = status in ("done", "solved_qa")  # keep the legacy flag in sync
-                    else:
-                        issue["done"] = done
-                    found = True
-            db_query("UPDATE projects SET issues=%s::jsonb, updated_at=now() WHERE id=%s", (json.dumps(issues), pid))
-            # Also mirror the status onto the run this status change actually belongs
-            # to (project_runs is a frozen snapshot per run, so once a NEWER run
-            # supersedes it the status is permanently locked in — this is what lets
-            # "Review overview" show the final status issues were left in for that
-            # run). The frontend passes run_id (the run active when the check was
-            # made) so this targets the RIGHT run even if the user has since
-            # switched to checking a different page/run — falling back to "latest
-            # by ran_at" only when no run_id is given (older client, or no run yet).
-            # Guessing "latest" unconditionally was racy: a status PATCH for an
-            # older run that was still in flight when a NEWER run got created would
-            # silently mirror onto that unrelated newer run instead (no matching
-            # issue id there, so it just silently did nothing).
-            if run_id_hint is not None:
-                target_run = db_query(
-                    "SELECT id, issues FROM project_runs WHERE id=%s AND project_id=%s",
-                    (run_id_hint, pid), fetch="one")
-            else:
-                target_run = db_query(
-                    "SELECT id, issues FROM project_runs WHERE project_id=%s ORDER BY ran_at DESC LIMIT 1",
-                    (pid,), fetch="one")
-            if target_run:
-                run_id, run_issues = target_run
-                run_issues = run_issues or []
-                run_changed = False
-                for issue in run_issues:
+
+            def _apply(issues_list):
+                changed = False
+                for issue in issues_list:
                     if isinstance(issue, dict) and issue.get("id") == issue_id:
                         if status is not None:
                             issue["status"] = status
-                            issue["done"] = status in ("done", "solved_qa")
+                            issue["done"] = status in ("done", "solved_qa")  # keep the legacy flag in sync
                         else:
                             issue["done"] = done
-                        run_changed = True
-                if run_changed:
-                    db_query("UPDATE project_runs SET issues=%s::jsonb WHERE id=%s", (json.dumps(run_issues), run_id))
-            total, resolved, _ = _issue_stats(issues, None)
+                        changed = True
+                return changed
+
+            # This whole read-modify-write runs as ONE transaction with explicit
+            # row locks (SELECT ... FOR UPDATE), not the usual db_query() (a fresh
+            # connection+commit per call). Marking several issues Done in a row
+            # fires overlapping PATCH requests (each row's dropdown click isn't
+            # awaited by the next), and reading the JSONB array, editing it in
+            # Python, then writing the whole array back is a classic lost-update
+            # race: two requests can both read the same "before" array, and
+            # whichever writes second clobbers the first request's change with its
+            # own stale copy — some issues silently revert to Not Started after a
+            # tab switch even though they were marked Done. Locking the row makes
+            # the second request's SELECT block until the first request's UPDATE
+            # commits, so it always edits the up-to-date array instead.
+            conn = get_db_conn()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT issues FROM projects WHERE id=%s FOR UPDATE", (pid,))
+                    row = cur.fetchone()
+                    if not row:
+                        conn.rollback()
+                        return self._send(404, "application/json",
+                                           json.dumps({"error": "Project not found"}).encode("utf-8"))
+                    issues = row[0] or []
+                    found = _apply(issues)
+                    cur.execute("UPDATE projects SET issues=%s::jsonb, updated_at=now() WHERE id=%s",
+                                (json.dumps(issues), pid))
+                    # Also mirror the status onto the run this status change actually
+                    # belongs to (project_runs is a frozen snapshot per run, so once a
+                    # NEWER run supersedes it the status is permanently locked in —
+                    # this is what lets "Review overview" show the final status issues
+                    # were left in for that run). The frontend passes run_id (the run
+                    # active when the check was made) so this targets the RIGHT run
+                    # even if the user has since switched to checking a different
+                    # page/run — falling back to "latest by ran_at" only when no
+                    # run_id is given (older client, or no run yet).
+                    if run_id_hint is not None:
+                        cur.execute(
+                            "SELECT id, issues FROM project_runs WHERE id=%s AND project_id=%s FOR UPDATE",
+                            (run_id_hint, pid))
+                    else:
+                        cur.execute(
+                            "SELECT id, issues FROM project_runs WHERE project_id=%s ORDER BY ran_at DESC LIMIT 1 FOR UPDATE",
+                            (pid,))
+                    target_run = cur.fetchone()
+                    if target_run:
+                        run_id, run_issues = target_run
+                        run_issues = run_issues or []
+                        if _apply(run_issues):
+                            cur.execute("UPDATE project_runs SET issues=%s::jsonb WHERE id=%s",
+                                        (json.dumps(run_issues), run_id))
+                    total, resolved, _ = _issue_stats(issues, None)
+                conn.commit()
+            finally:
+                conn.close()
             self._send(200, "application/json", json.dumps({
                 "ok": found, "issues_total": total, "issues_resolved": resolved,
             }).encode("utf-8"))
