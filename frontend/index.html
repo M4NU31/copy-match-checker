@@ -479,6 +479,19 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .run-current-tag{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.5px;
   color:var(--pink-2); background:var(--pink-dim); border:1px solid rgba(255,20,73,.3); border-radius:6px; padding:3px 7px;}
 .hist-empty{color:var(--muted); text-align:center; padding:30px 10px;}
+/* ---- who worked on a run, whether it's frozen, and any fork chain ---- */
+.run-contrib-row{display:flex; align-items:center; gap:10px; padding:0 14px 12px; flex-wrap:wrap; border-top:1px solid var(--border); margin-top:-1px; padding-top:10px;}
+.run-status-tag{display:inline-flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:20px; flex:none;}
+.run-status-tag.completed{color:var(--green); background:rgba(47,214,166,.12); border:1px solid rgba(47,214,166,.35);}
+.run-status-tag.progress{color:var(--amber); background:rgba(245,165,36,.12); border:1px solid rgba(245,165,36,.35);}
+.run-status-tag svg{width:10px; height:10px;}
+.run-contrib-avatars{display:flex; flex:none;}
+.run-contrib-avatar{width:22px; height:22px; border-radius:50%; border:2px solid var(--input); background:var(--pink-dim); color:var(--pink-2);
+  font-size:9.5px; font-weight:700; display:flex; align-items:center; justify-content:center; margin-left:-7px; flex:none;}
+.run-contrib-avatar:first-child{margin-left:0;}
+.run-contrib-names{font-size:11.5px; color:var(--text-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.run-fork-note{font-size:11px; color:var(--muted); display:flex; align-items:center; gap:5px;}
+.run-fork-note svg{width:12px; height:12px; color:var(--border-2); flex:none;}
 @media (max-width:640px){
   .run-head,.run-summary{grid-template-columns:1fr .9fr .7fr 74px;}
   .run-time,.run-doc-btn,.run-url,.run-by,.run-head .run-time,.run-head .run-doc,.run-head .run-url,.run-head .run-by{display:none;}
@@ -727,7 +740,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10bz · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10ca · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -850,7 +863,7 @@ const API_BASE=(location.hostname==="localhost"||location.hostname==="127.0.0.1"
 const state={approvedText:"",approvedBlocks:[],pages:[],issues:[],allIssues:[],status:new Map(),
   docKind:null,pdfDoc:null,pdfLines:[],docText:"",isDocx:false,isRunning:false,runCtrl:null,
   projectId:null,projectName:"",projects:[],runs:[],runDetails:{},docFile:null,noteCounts:new Map(),
-  siteTabs:[],activeTabUrl:null};
+  siteTabs:[],activeTabUrl:null,currentRunCompleted:false};
 
 /* ---------------- projects API helpers ---------------- */
 async function apiCall(method,path,body){
@@ -1604,10 +1617,45 @@ document.body.appendChild(_statusMenu);
 let _statusTarget=null;
 function openStatusMenu(btn,id){_statusTarget=id;const r=btn.getBoundingClientRect();_statusMenu.style.left=(r.right+window.scrollX-176)+"px";_statusMenu.style.top=(r.bottom+window.scrollY+4)+"px";_statusMenu.classList.remove("hidden");}
 function closeStatusMenu(){_statusMenu.classList.add("hidden");_statusTarget=null;}
-function setIssueStatus(id,status){
+// A run gets frozen for good the moment every issue in it is resolved (see
+// handle_issue_toggle in serve.py). If someone keeps editing it after that,
+// their changes must land somewhere WITHOUT touching the finished snapshot —
+// ensureRunNotCompleted() forks it into a fresh, editable run first. The
+// in-flight promise is shared so two quick clicks right after a run completes
+// only trigger one fork, not two (the second click just waits on the first's
+// fork instead of racing it).
+let _forkInFlight=null;
+async function ensureRunNotCompleted(){
+  if(!state.currentRunCompleted)return;
+  if(_forkInFlight)return _forkInFlight;
+  _forkInFlight=(async()=>{
+    try{
+      const r=await apiPost(`/projects/${state.projectId}/runs/${state.currentRunId}/continue`,{changed_by:getUserName()});
+      state.currentRunId=r.run_id;state.currentRunCompleted=false;
+      if(state.activeTabUrl)addSiteTab(state.activeTabUrl,null,r.run_id);
+      loadRuns();  // refresh History in the background so the new continuation shows up
+      toast("This page was already completed — continuing in a new revision");
+    }catch(e){toast("Could not continue this revision: "+(e.message||e));}
+    finally{_forkInFlight=null;}
+  })();
+  return _forkInFlight;
+}
+async function setIssueStatus(id,status){
   state.status.set(id,status);
   renderSummary();renderTable(state.activeFilter||"all");
-  if(state.projectId)apiPatch(`/projects/${state.projectId}/issues/${encodeURIComponent(id)}`,{status,run_id:state.currentRunId}).catch(e=>toast("Could not save: "+(e.message||e)));
+  if(!state.projectId)return;
+  try{
+    await ensureRunNotCompleted();
+    const r=await apiPatch(`/projects/${state.projectId}/issues/${encodeURIComponent(id)}`,
+      {status,run_id:state.currentRunId,changed_by:getUserName()});
+    if(r&&r.run_locked){
+      // Desync safety net: the run we targeted turned out to already be
+      // completed (shouldn't normally happen — ensureRunNotCompleted() above
+      // should have caught it). Re-sync so the NEXT click forks correctly.
+      state.currentRunCompleted=true;
+      toast("This revision just got completed elsewhere — try that change again");
+    }
+  }catch(e){toast("Could not save: "+(e.message||e));}
 }
 _statusMenu.addEventListener("click",e=>{const o=e.target.closest(".status-opt");if(!o||!_statusTarget)return;setIssueStatus(_statusTarget,o.dataset.st);closeStatusMenu();});
 $("#issuesBody").addEventListener("click",e=>{const b=e.target.closest(".status-btn");if(b){e.stopPropagation();openStatusMenu(b,b.dataset.id);}});
@@ -2024,6 +2072,7 @@ async function run(){
     $("#runNote").textContent="Saving…";
     const saveResult=await saveProjectRun();
     renderAll();
+    state.currentRunCompleted=false;  // a fresh run starts unresolved (unless there are 0 issues, in which case nothing ever needs to fork)
     // The page you just checked gets (or updates) its own tab and becomes the
     // active one — tabs only grow this way, one at a time, as real Checks
     // happen; older pages stay out of this bar and live in History instead.
@@ -2147,7 +2196,7 @@ $("#backToProjects").addEventListener("click",()=>{goDashboard();});
 // since switching projects may mean a totally different document.
 function resetToolState(){
   state.issues=[];state.allIssues=[];state.status=new Map();state.score=undefined;
-  state.approvedCount=undefined;state.pageCount=undefined;state.runs=[];state.runDetails={};state.currentRunId=null;
+  state.approvedCount=undefined;state.pageCount=undefined;state.runs=[];state.runDetails={};state.currentRunId=null;state.currentRunCompleted=false;
   state.siteTabs=[];state.activeTabUrl=null;$("#pageTabsSection").classList.add("hidden");$("#pageTabs").innerHTML="";
   state.approvedText="";state.approvedBlocks=[];state.pages=[];
   state.docKind=null;state.pdfDoc=null;state.pdfLines=[];state.docText="";state.isDocx=false;
@@ -2280,7 +2329,7 @@ async function selectPageTab(url,runId){
     state.issues=r.issues||[];state.score=r.score||0;
     state.status=new Map((r.issues||[]).map(i=>[i.id,i.status||(i.done?"done":"not_started")]));
     state.meta={client:state.meta.client||"",page:r.page_name,url:r.page_url,cms:"—"};
-    state.currentRunId=runId;
+    state.currentRunId=runId;state.currentRunCompleted=!!r.completed_at;
     $("#pageName").value=r.page_name||"";$("#pageUrl").value=r.page_url||"";
     renderAll();
     $("#runNote").textContent=`Showing ${r.page_name||"this page"} · ${new Date(r.ran_at).toLocaleString()}`;
@@ -2364,7 +2413,16 @@ async function renderHistoryBody(){
     </div>
     <div class="run-list" id="runList"></div>`;
   const list=$("#runList");
+  const byId=new Map(state.runs.map(x=>[x.id,x]));
   list.innerHTML=runs.map((r,i)=>{
+    const contributors=r.contributors||[];
+    const statusTag=r.completed_at
+      ?`<span class="run-status-tag completed"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>Completed</span>`
+      :`<span class="run-status-tag progress">${r.issues_resolved}/${r.issues_total} resolved</span>`;
+    const avatars=contributors.length?`<div class="run-contrib-avatars">${contributors.map(name=>`<div class="run-contrib-avatar">${esc(tabInitials(name))}</div>`).join("")}</div>`:"";
+    const names=contributors.length?`<span class="run-contrib-names">${esc(contributors.join(", "))}</span>`:`<span class="run-contrib-names muted">No status changes yet</span>`;
+    const parent=r.forked_from?byId.get(r.forked_from):null;
+    const forkNote=r.forked_from?`<span class="run-fork-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v8a4 4 0 0 0 4 4h4"/><path d="M18 13v8"/></svg>Continued after ${parent?fmtDate(parent.ran_at):"an earlier run"} was completed</span>`:"";
     return `<div class="run-row${i===0?' current':''}" data-run="${r.id}">
       <div class="run-summary">
         <div class="run-date">${fmtDate(r.ran_at)}</div>
@@ -2380,6 +2438,7 @@ async function renderHistoryBody(){
         <div class="run-by" title="${r.ran_by?esc(r.ran_by):'—'}">${r.ran_by?esc(r.ran_by):'<span class="muted">—</span>'}</div>
         <div>${i===0?'<span class="run-current-tag">Actual</span>':''}</div>
       </div>
+      <div class="run-contrib-row">${statusTag}${avatars}${names}${forkNote}</div>
     </div>`;
   }).join("");
   list.querySelectorAll("[data-doc]").forEach(b=>b.addEventListener("click",()=>

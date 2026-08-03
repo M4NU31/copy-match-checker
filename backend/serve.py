@@ -471,6 +471,18 @@ def init_db():
             # ADD COLUMN IF NOT EXISTS so an already-deployed table (created
             # before ran_by existed) picks it up without a manual migration.
             cur.execute("ALTER TABLE project_runs ADD COLUMN IF NOT EXISTS ran_by TEXT NOT NULL DEFAULT '';")
+            # contributors: everyone who has toggled an issue's status in this
+            # run (distinct from ran_by, who just started it) — see
+            # handle_issue_toggle. completed_at: set the moment every issue in
+            # the run is resolved, and NEVER changed again after that — once
+            # set, this run is frozen for good. forked_from: when someone
+            # keeps editing a run after completed_at is set, their changes land
+            # on a brand-new cloned row instead (see handle_run_continue), and
+            # this points back at the completed run it continues — so a
+            # finished revision is never silently overwritten by later work.
+            cur.execute("ALTER TABLE project_runs ADD COLUMN IF NOT EXISTS contributors JSONB NOT NULL DEFAULT '[]'::jsonb;")
+            cur.execute("ALTER TABLE project_runs ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;")
+            cur.execute("ALTER TABLE project_runs ADD COLUMN IF NOT EXISTS forked_from INTEGER REFERENCES project_runs(id);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_project_runs_project_id ON project_runs(project_id, ran_at DESC);")
             # Friendly URL slug per project. Backfill unique slugs for any existing
             # rows, then enforce uniqueness so /project/<slug> resolves to one row.
@@ -638,6 +650,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         m = re.match(r"^/projects/(\d+)/issues/([^/]+)/notes$", self.path)
         if m:
             return self.handle_notes_create(int(m.group(1)), urllib.parse.unquote(m.group(2)))
+        m = re.match(r"^/projects/(\d+)/runs/(\d+)/continue$", self.path)
+        if m:
+            return self.handle_run_continue(int(m.group(1)), int(m.group(2)))
         return self._send(404, "text/plain", b"Not found")
 
     def do_PUT(self):
@@ -868,10 +883,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._db_unavailable()
         try:
             rows = db_query(
-                "SELECT id, ran_at, score, issues, doc_filename, ran_by, page_url, page_name FROM project_runs "
+                "SELECT id, ran_at, score, issues, doc_filename, ran_by, page_url, page_name, "
+                "contributors, completed_at, forked_from FROM project_runs "
                 "WHERE project_id=%s ORDER BY ran_at DESC", (pid,), fetch="all")
             runs = []
-            for (rid, ran_at, score, issues, doc_filename, ran_by, page_url, page_name) in rows:
+            for (rid, ran_at, score, issues, doc_filename, ran_by, page_url, page_name,
+                 contributors, completed_at, forked_from) in rows:
                 issues = issues or []
                 # live_score is the same "score interpolates toward 100% as issues
                 # get marked Done" formula used everywhere else (dashboard cards,
@@ -884,6 +901,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     "score": score, "live_score": live, "issues_total": total,
                     "issues_resolved": resolved, "doc_filename": doc_filename,
                     "ran_by": ran_by or None, "page_url": page_url, "page_name": page_name,
+                    "contributors": contributors or [],
+                    "completed_at": completed_at.isoformat() if completed_at else None,
+                    "forked_from": forked_from,
                 })
             self._send(200, "application/json", json.dumps({"runs": runs}).encode("utf-8"))
         except Exception as e:  # noqa: BLE001
@@ -896,11 +916,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._db_unavailable()
         try:
             row = db_query(
-                "SELECT id, ran_at, site_name, page_name, page_url, score, issues, doc_filename, ran_by "
+                "SELECT id, ran_at, site_name, page_name, page_url, score, issues, doc_filename, ran_by, "
+                "contributors, completed_at, forked_from "
                 "FROM project_runs WHERE id=%s AND project_id=%s", (run_id, pid), fetch="one")
             if not row:
                 return self._send(404, "application/json", json.dumps({"error": "Run not found"}).encode("utf-8"))
-            (rid, ran_at, site_name, page_name, page_url, score, issues, doc_filename, ran_by) = row
+            (rid, ran_at, site_name, page_name, page_url, score, issues, doc_filename, ran_by,
+             contributors, completed_at, forked_from) = row
             issues = issues or []
             _, _, live = _issue_stats(issues, score)
             self._send(200, "application/json", json.dumps({
@@ -908,7 +930,47 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 "site_name": site_name, "page_name": page_name, "page_url": page_url,
                 "score": score, "live_score": live, "issues": issues, "doc_filename": doc_filename,
                 "ran_by": ran_by or None,
+                "contributors": contributors or [],
+                "completed_at": completed_at.isoformat() if completed_at else None,
+                "forked_from": forked_from,
             }).encode("utf-8"))
+        except Exception as e:  # noqa: BLE001
+            self._send(502, "application/json", json.dumps({"error": str(e)}).encode("utf-8"))
+
+    def handle_run_continue(self, pid, run_id):
+        """Clones a COMPLETED run into a fresh, editable one. completed_at is
+        never touched again once set (see handle_issue_toggle) — this is how
+        someone can keep working on a page after it was already finished
+        without ever overwriting the finished snapshot: their edits land on
+        this new row instead, chained via forked_from so History can show it
+        as a continuation rather than an unrelated new comparison."""
+        if not self._secret_ok():
+            return
+        if not DB_AVAILABLE:
+            return self._db_unavailable()
+        length = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(length) if length else b"{}"
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+            changed_by = (payload.get("changed_by") or "").strip()
+            row = db_query(
+                "SELECT site_name, page_name, page_url, score, issues, doc_filename, "
+                "doc_content_type, doc_bytes, ran_by FROM project_runs WHERE id=%s AND project_id=%s",
+                (run_id, pid), fetch="one")
+            if not row:
+                return self._send(404, "application/json", json.dumps({"error": "Run not found"}).encode("utf-8"))
+            (site_name, page_name, page_url, score, issues, doc_filename,
+             doc_content_type, doc_bytes, ran_by) = row
+            doc_bytes_copy = psycopg2.Binary(bytes(doc_bytes)) if doc_bytes is not None else None
+            contributors = [changed_by] if changed_by else []
+            new_row = db_query(
+                """INSERT INTO project_runs (project_id, site_name, page_name, page_url, score, issues,
+                    doc_filename, doc_content_type, doc_bytes, ran_by, contributors, forked_from)
+                   VALUES (%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s,%s,%s::jsonb,%s) RETURNING id""",
+                (pid, site_name, page_name, page_url, score, json.dumps(issues or []),
+                 doc_filename, doc_content_type, doc_bytes_copy, ran_by, json.dumps(contributors), run_id),
+                fetch="one")
+            self._send(200, "application/json", json.dumps({"run_id": new_row[0]}).encode("utf-8"))
         except Exception as e:  # noqa: BLE001
             self._send(502, "application/json", json.dumps({"error": str(e)}).encode("utf-8"))
 
@@ -972,6 +1034,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             status = payload.get("status")
             done = bool(payload.get("done"))
             run_id_hint = payload.get("run_id")
+            changed_by = (payload.get("changed_by") or "").strip()
 
             def _apply(issues_list):
                 changed = False
@@ -1021,25 +1084,44 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     # run_id is given (older client, or no run yet).
                     if run_id_hint is not None:
                         cur.execute(
-                            "SELECT id, issues FROM project_runs WHERE id=%s AND project_id=%s FOR UPDATE",
+                            "SELECT id, issues, contributors, completed_at FROM project_runs "
+                            "WHERE id=%s AND project_id=%s FOR UPDATE",
                             (run_id_hint, pid))
                     else:
                         cur.execute(
-                            "SELECT id, issues FROM project_runs WHERE project_id=%s ORDER BY ran_at DESC LIMIT 1 FOR UPDATE",
+                            "SELECT id, issues, contributors, completed_at FROM project_runs "
+                            "WHERE project_id=%s ORDER BY ran_at DESC LIMIT 1 FOR UPDATE",
                             (pid,))
                     target_run = cur.fetchone()
+                    run_locked = False
                     if target_run:
-                        run_id, run_issues = target_run
+                        run_id, run_issues, run_contributors, run_completed_at = target_run
                         run_issues = run_issues or []
-                        if _apply(run_issues):
-                            cur.execute("UPDATE project_runs SET issues=%s::jsonb WHERE id=%s",
-                                        (json.dumps(run_issues), run_id))
+                        run_contributors = run_contributors or []
+                        if run_completed_at is not None:
+                            # This run was already fully resolved and is frozen for
+                            # good (see handle_run_continue) — the client is expected
+                            # to fork BEFORE sending an edit here, so reaching this
+                            # normally means it raced/desynced. Skip writing rather
+                            # than silently reopening a "completed" revision; the
+                            # client re-syncs and forks on its next attempt.
+                            run_locked = True
+                        else:
+                            if _apply(run_issues) and changed_by and changed_by not in run_contributors:
+                                run_contributors = run_contributors + [changed_by]
+                            total_r, resolved_r, _ = _issue_stats(run_issues, None)
+                            newly_completed = total_r > 0 and resolved_r == total_r
+                            cur.execute(
+                                "UPDATE project_runs SET issues=%s::jsonb, contributors=%s::jsonb, "
+                                "completed_at=(CASE WHEN %s THEN now() ELSE completed_at END) WHERE id=%s",
+                                (json.dumps(run_issues), json.dumps(run_contributors), newly_completed, run_id))
                     total, resolved, _ = _issue_stats(issues, None)
                 conn.commit()
             finally:
                 conn.close()
             self._send(200, "application/json", json.dumps({
                 "ok": found, "issues_total": total, "issues_resolved": resolved,
+                "run_locked": run_locked,
             }).encode("utf-8"))
         except Exception as e:  # noqa: BLE001
             self._send(502, "application/json", json.dumps({"error": str(e)}).encode("utf-8"))
