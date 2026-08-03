@@ -894,10 +894,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._db_unavailable()
         try:
             rows = db_query(
-                "SELECT id, ran_at, score, issues, doc_filename, ran_by, page_url FROM project_runs "
+                "SELECT id, ran_at, score, issues, doc_filename, ran_by, page_url, page_name FROM project_runs "
                 "WHERE project_id=%s ORDER BY ran_at DESC", (pid,), fetch="all")
             runs = []
-            for (rid, ran_at, score, issues, doc_filename, ran_by, page_url) in rows:
+            for (rid, ran_at, score, issues, doc_filename, ran_by, page_url, page_name) in rows:
                 issues = issues or []
                 # live_score is the same "score interpolates toward 100% as issues
                 # get marked Done" formula used everywhere else (dashboard cards,
@@ -909,7 +909,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     "id": rid, "ran_at": ran_at.isoformat() if ran_at else None,
                     "score": score, "live_score": live, "issues_total": total,
                     "issues_resolved": resolved, "doc_filename": doc_filename,
-                    "ran_by": ran_by or None, "page_url": page_url,
+                    "ran_by": ran_by or None, "page_url": page_url, "page_name": page_name,
                 })
             self._send(200, "application/json", json.dumps({"runs": runs}).encode("utf-8"))
         except Exception as e:  # noqa: BLE001

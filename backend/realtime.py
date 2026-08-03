@@ -59,7 +59,13 @@ async def handler(ws, *_args):  # *_args tolerates older websockets (ws, path)
         user = first.get("user") or {}
         if not project or not user.get("id"):
             return
-        entry = {"ws": ws, "user": user}
+        # entry["page"] tracks which page tab (page_url) this connection is
+        # currently looking at — updated as "page_focus" messages arrive (see
+        # index.html's page-tab bar). Kept on the entry (not just relayed) so a
+        # user who joins AFTER someone else already picked a tab still sees
+        # that presence immediately via the roster, instead of only finding
+        # out the next time the other person switches tabs.
+        entry = {"ws": ws, "user": user, "page": None}
         _room(project).append(entry)
         # Send the newcomer the users already present (unique by id).
         seen, roster = set(), []
@@ -70,9 +76,9 @@ async def handler(ws, *_args):  # *_args tolerates older websockets (ws, path)
             if uid in seen:
                 continue
             seen.add(uid)
-            roster.append(e["user"])
+            roster.append({**e["user"], "page": e.get("page")})
         await ws.send(json.dumps({"type": "roster", "users": roster}))
-        await _broadcast(project, {"type": "join", "user": user}, exclude=ws)
+        await _broadcast(project, {"type": "join", "user": user, "page": None}, exclude=ws)
         # Relay everything else, stamping the server-known sender identity.
         async for raw in ws:
             try:
@@ -81,6 +87,8 @@ async def handler(ws, *_args):  # *_args tolerates older websockets (ws, path)
                 continue
             if not isinstance(m, dict):
                 continue
+            if m.get("type") == "page_focus":
+                entry["page"] = m.get("page_url") or None
             m["user"] = user
             await _broadcast(project, m, exclude=ws)
     except Exception:  # noqa: BLE001

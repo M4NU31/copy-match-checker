@@ -223,6 +223,32 @@ select{appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='h
 .btn-ghost:hover{color:var(--text); border-color:var(--border-2);}
 .run-note{margin-top:9px; text-align:center; min-height:16px;}
 
+/* ---------- page tabs (one per page URL checked in this project) ---------- */
+.page-tabs{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;}
+.page-tab{position:relative; display:flex; align-items:center; gap:9px; background:var(--input); border:1px dashed var(--border-2);
+  border-radius:11px; padding:10px 16px; cursor:pointer; max-width:240px; color:var(--text); font-family:inherit;
+  transition:border-color .15s ease, background .15s ease;}
+.page-tab:hover,.page-tab.active{border-color:var(--pink); background:var(--pink-dim);}
+.tab-avatars{display:flex; flex:none;}
+.tab-avatar{width:26px; height:26px; border-radius:50%; flex:none; background:var(--pink-dim); color:var(--pink-2);
+  font-size:10.5px; font-weight:700; display:flex; align-items:center; justify-content:center; overflow:hidden;
+  border:2px solid var(--input); margin-left:-9px;}
+.page-tab:hover .tab-avatar,.page-tab.active .tab-avatar{border-color:var(--pink-dim);}
+.tab-avatar:first-child{margin-left:0;}
+.tab-avatar img{width:100%; height:100%; object-fit:cover;}
+.tab-name{font-size:13px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;}
+.tab-tooltip{position:absolute; left:50%; bottom:calc(100% + 10px); transform:translateX(-50%) translateY(4px);
+  background:var(--card-2); border:1px solid var(--border-2); border-radius:9px; padding:9px 13px;
+  font-size:12px; font-weight:500; line-height:1.4; color:var(--text); text-align:left;
+  width:max-content; max-width:230px; white-space:normal;
+  opacity:0; pointer-events:none; transition:opacity .15s ease, transform .15s ease;
+  box-shadow:0 10px 24px rgba(0,0,0,.4); z-index:5;}
+.tab-tooltip b{color:var(--pink-2); font-weight:700;}
+.tab-tooltip::after{content:""; position:absolute; top:100%; left:50%; transform:translateX(-50%);
+  border:6px solid transparent; border-top-color:var(--card-2);}
+.page-tab:hover .tab-tooltip,.page-tab:focus-visible .tab-tooltip{opacity:1; transform:translateX(-50%) translateY(0); pointer-events:auto;}
+.tabs-placeholder{border:1px dashed var(--border-2); border-radius:14px; padding:34px 20px; text-align:center; color:var(--muted); font-size:13px; margin-bottom:18px;}
+
 /* ---------- summary ---------- */
 .section-title{display:flex; align-items:center; gap:9px; font-size:22px; font-weight:700; margin:0 0 14px;}
 .summary{display:grid; grid-template-columns:repeat(6,1fr); gap:10px; margin-bottom:18px;}
@@ -658,6 +684,18 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
     </div>
   </section>
 
+  <!-- ============ PAGE TABS ============
+       One tab per distinct page URL checked in this project (built from the
+       run history — see buildSiteTabs()/renderPageTabs()). No tab is active by
+       default: a teammate who just opened the project sees only the buttons +
+       who's-here avatars, never the table another teammate has open — clicking
+       a tab is what actually loads its issues table below. -->
+  <section id="pageTabsSection" class="hidden">
+    <h2 class="section-title">Pages checked</h2>
+    <div class="page-tabs" id="pageTabs"></div>
+    <div class="tabs-placeholder" id="tabsPlaceholder">Select a page above to see its issues table.</div>
+  </section>
+
   <!-- ============ RESULTS ============ -->
   <section id="results" class="hidden">
     <!-- summary -->
@@ -693,7 +731,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10bu · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10bv · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -827,7 +865,8 @@ const $=(s)=>document.querySelector(s), $$=(s)=>Array.from(document.querySelecto
 const API_BASE=(location.hostname==="localhost"||location.hostname==="127.0.0.1"||location.protocol==="file:")?"":(document.querySelector('meta[name="api-base"]')?.content||"").replace(/\/$/,"");
 const state={approvedText:"",approvedBlocks:[],pages:[],issues:[],allIssues:[],status:new Map(),
   docKind:null,pdfDoc:null,pdfLines:[],docText:"",isDocx:false,isRunning:false,runCtrl:null,
-  projectId:null,projects:[],runs:[],runDetails:{},docFile:null,noteCounts:new Map()};
+  projectId:null,projects:[],runs:[],runDetails:{},docFile:null,noteCounts:new Map(),
+  siteTabs:[],activeTabUrl:null};
 
 /* ---------------- projects API helpers ---------------- */
 async function apiCall(method,path,body){
@@ -2002,6 +2041,11 @@ async function run(){
     $("#runNote").textContent="Saving…";
     const saveResult=await saveProjectRun();
     renderAll();
+    // The page you just checked becomes your own active tab — loadRuns() (kicked
+    // off inside saveProjectRun) will fill in the tab bar shortly after; this just
+    // makes sure it opens already pointed at the right one once it does.
+    state.activeTabUrl=state.meta.url;renderPageTabs();
+    rtSend({type:"page_focus",page_url:state.meta.url});
     loadNoteCounts();  // refresh Notes badges in the background — same issue ids can carry notes across runs
     // A save failure is shown in the persistent run-note text, not just a
     // toast — the "QA complete" toast right below would otherwise instantly
@@ -2124,6 +2168,7 @@ function resetToolState(opts){
   const keepDoc=!!(opts&&opts.keepDocument);
   state.issues=[];state.allIssues=[];state.status=new Map();state.score=undefined;
   state.approvedCount=undefined;state.pageCount=undefined;state.runs=[];state.runDetails={};state.currentRunId=null;
+  state.siteTabs=[];state.activeTabUrl=null;$("#pageTabsSection").classList.add("hidden");$("#pageTabs").innerHTML="";
   if(keepDoc){state.meta={client:state.meta.client};}
   else{
     state.approvedText="";state.approvedBlocks=[];state.pages=[];
@@ -2151,13 +2196,9 @@ async function loadProject(id){
     $("#clientName").value=p.site_name||"";
     $("#pageName").value=p.page_name||"";
     $("#pageUrl").value=p.page_url||"";
-    if(p.issues&&p.issues.length){
-      state.issues=p.issues;state.score=p.score||0;
-      state.status=new Map(p.issues.map(i=>[i.id,i.status||(i.done?"done":"not_started")]));
-      state.meta={client:p.site_name,page:p.page_name,url:p.page_url,cms:"—"};
-      renderAll();
-      $("#runNote").textContent=`Showing the last run · ${new Date(p.last_run_at).toLocaleString()}`;
-    }
+    // No auto-render here on purpose: which page's table (if any) is showing
+    // is per-teammate, local state — see the Page Tabs section. loadRuns()
+    // below builds the tab bar; the reviewer picks a tab to see its issues.
     loadNoteCounts();
     // Current approved document: any teammate can download it (and open the
     // original in Drive when it came from Drive) without re-uploading.
@@ -2189,6 +2230,70 @@ async function loadRuns(){
     state.runs=data.runs||[];
     $("#historyCount").textContent=state.runs.length;
   }catch(e){state.runs=[];$("#historyCount").textContent="0";}
+  buildSiteTabs();renderPageTabs();
+}
+
+/* ---------------- page tabs (one per distinct page URL checked) ----------------
+   Built entirely from the run history already loaded above — no separate
+   endpoint needed. state.runs is ordered most-recent-first, so the first run
+   seen for a given page_url is that page's current (latest) state. Tabs are
+   deliberately NOT auto-selected on load (see #pageTabsSection markup): only
+   an explicit click loads a tab's table, so one teammate's open table is never
+   shown to another who just opened the project — they only see the buttons
+   and who else is currently on each page. */
+function buildSiteTabs(){
+  const seen=new Map();
+  for(const r of state.runs){
+    if(!r.page_url||seen.has(r.page_url))continue;
+    seen.set(r.page_url,r);
+  }
+  state.siteTabs=Array.from(seen.entries()).map(([url,r])=>({url,name:r.page_name||url,runId:r.id}));
+  // The active tab may have gotten a newer run (e.g. re-checked); keep it
+  // pinned to that page but pick up the fresh run id so status edits land
+  // on the right row.
+  if(state.activeTabUrl){
+    const t=state.siteTabs.find(t=>t.url===state.activeTabUrl);
+    if(t)state.currentRunId=t.runId;
+  }
+}
+function tabInitials(name){return (name||"?").trim().split(/\s+/).map(w=>w[0]).slice(0,2).join("").toUpperCase();}
+// Singular/plural phrasing for the combined hover tooltip — see CLAUDE.md-adjacent
+// design notes: hover lives on the WHOLE tab button, one message listing everyone
+// on that page, not a separate tooltip per avatar.
+function peopleWorkingText(users){
+  const names=users.map(u=>`<b>${esc(u.name||u.email||"Someone")}</b>`);
+  if(names.length===1)return `${names[0]} is working on this page`;
+  return `${names.slice(0,-1).join(", ")} and ${names[names.length-1]} are working on this page`;
+}
+function renderPageTabs(){
+  const sec=$("#pageTabsSection");
+  if(!state.siteTabs.length){sec.classList.add("hidden");return;}
+  sec.classList.remove("hidden");
+  $("#pageTabs").innerHTML=state.siteTabs.map(t=>{
+    const here=Object.values(_rtPagePresence).filter(p=>p.page===t.url).map(p=>p.user);
+    const avatars=here.length?`<div class="tab-avatars">${here.map(u=>
+      `<div class="tab-avatar">${u.avatar?`<img src="${esc(u.avatar)}" alt="" onerror="this.remove()">`:esc(tabInitials(u.name||u.email))}</div>`).join("")}</div>`:"";
+    const tooltip=here.length?`<div class="tab-tooltip">${peopleWorkingText(here)}</div>`:"";
+    return `<button type="button" class="page-tab${t.url===state.activeTabUrl?" active":""}" data-url="${esc(t.url)}" data-run="${t.runId}">${avatars}<span class="tab-name">${esc(t.name)}</span>${tooltip}</button>`;
+  }).join("");
+  $$("#pageTabs .page-tab").forEach(b=>b.addEventListener("click",()=>selectPageTab(b.dataset.url,+b.dataset.run)));
+  $("#tabsPlaceholder").classList.toggle("hidden",!!state.activeTabUrl);
+}
+async function selectPageTab(url,runId){
+  if(state.isRunning){toast("Wait for the current check to finish");return;}
+  state.activeTabUrl=url;renderPageTabs();
+  rtSend({type:"page_focus",page_url:url});
+  try{
+    const r=await apiGet(`/projects/${state.projectId}/runs/${runId}`);
+    state.issues=r.issues||[];state.score=r.score||0;
+    state.status=new Map((r.issues||[]).map(i=>[i.id,i.status||(i.done?"done":"not_started")]));
+    state.meta={client:state.meta.client||"",page:r.page_name,url:r.page_url,cms:"—"};
+    state.currentRunId=runId;
+    $("#pageName").value=r.page_name||"";$("#pageUrl").value=r.page_url||"";
+    renderAll();
+    $("#runNote").textContent=`Showing ${r.page_name||"this page"} · ${new Date(r.ran_at).toLocaleString()}`;
+    loadNoteCounts();
+  }catch(e){toast("Could not load this page's issues: "+(e.message||e));}
 }
 function runScoreClass(score){
   if(score==null)return "na";
@@ -2244,13 +2349,17 @@ const MONTHS_EN=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","No
 function fmtDate(iso){if(!iso)return "—";const d=new Date(iso);return `${String(d.getDate()).padStart(2,"0")} ${MONTHS_EN[d.getMonth()]} ${d.getFullYear()}`;}
 async function renderHistoryBody(){
   const body=$("#historyBody");
-  if(!state.runs.length){body.innerHTML=`<div class="hist-empty">No runs saved for this project yet — click "Check" to start the history.</div>`;return;}
+  // Scoped to whichever page tab is active — each page keeps its own history.
+  // With no tab selected yet, fall back to every run in the project.
+  const runs=state.activeTabUrl?state.runs.filter(r=>r.page_url===state.activeTabUrl):state.runs;
+  if(!runs.length){body.innerHTML=`<div class="hist-empty">${state.activeTabUrl?"No runs saved for this page yet.":'No runs saved for this project yet — click "Check" to start the history.'}</div>`;return;}
   // The "Match score over time" sparkline used to render here — removed per
   // request but deliberately NOT deleted: buildSparkline() and its .spark-*
   // CSS are still intact below/in the stylesheet, unused, in case it comes
   // back later. To restore: re-add the .spark-wrap block (see git history for
   // this commit) and call buildSparkline(body,[...state.runs].reverse()).
   body.innerHTML=`
+    ${state.activeTabUrl?`<div class="muted small" style="margin-bottom:10px;">Showing history for this page only.</div>`:""}
     <div class="run-head">
       <div class="run-date">Date</div>
       <div class="run-time">Time</div>
@@ -2263,7 +2372,7 @@ async function renderHistoryBody(){
     </div>
     <div class="run-list" id="runList"></div>`;
   const list=$("#runList");
-  list.innerHTML=state.runs.map((r,i)=>{
+  list.innerHTML=runs.map((r,i)=>{
     return `<div class="run-row${i===0?' current':''}" data-run="${r.id}">
       <div class="run-summary">
         <div class="run-date">${fmtDate(r.ran_at)}</div>
@@ -2344,6 +2453,10 @@ $("#historyModal").addEventListener("click",e=>{if(e.target.id==="historyModal")
    planned Phase 2 (the relay already rebroadcasts any message type). See CLAUDE.md. */
 let _rt=null,_rtSelfId=null,_rtSelfColor=null,_rtPeers={};
 const _rtIssueFocus={};  // userId -> {issueId, color}
+// userId -> {user, page: page_url|null} — who's currently on which page tab
+// (see renderPageTabs()'s avatars/tooltip). Kept separate from _rtPeers since
+// that one only tracks "who's in the project at all", not per-page.
+let _rtPagePresence={};
 function userColor(seed){let h=0;for(let i=0;i<seed.length;i++)h=(h*31+seed.charCodeAt(i))>>>0;return `hsl(${h%360} 68% 56%)`;}
 function rtSelf(){const a=getAuth();if(!a)return null;return {id:a.email,name:a.name||a.email,email:a.email,avatar:a.picture||"",color:userColor(a.email||"x")};}
 function rtConnect(projectId){
@@ -2354,16 +2467,20 @@ function rtConnect(projectId){
     const ws=new WebSocket(`wss://${location.host}/ws`);_rt=ws;
     ws.onopen=()=>ws.send(JSON.stringify({type:"hello",project:String(projectId),user:self}));
     ws.onmessage=(e)=>{let m;try{m=JSON.parse(e.data);}catch(_){return;}rtHandle(m);};
-    ws.onclose=()=>{if(_rt===ws){_rt=null;_rtPeers={};clearRemoteIssueOutlines();clearAllCursors();renderPresence();}};
+    ws.onclose=()=>{if(_rt===ws){_rt=null;_rtPeers={};_rtPagePresence={};clearRemoteIssueOutlines();clearAllCursors();renderPresence();renderPageTabs();}};
     ws.onerror=()=>{};
   }catch(_){}
 }
-function rtDisconnect(){const w=_rt;_rt=null;_rtPeers={};clearRemoteIssueOutlines();clearAllCursors();renderPresence();if(w){try{w.close();}catch(_){}}}
+function rtDisconnect(){const w=_rt;_rt=null;_rtPeers={};_rtPagePresence={};clearRemoteIssueOutlines();clearAllCursors();renderPresence();renderPageTabs();if(w){try{w.close();}catch(_){}}}
 function rtSend(o){if(_rt&&_rt.readyState===1){try{_rt.send(JSON.stringify(o));}catch(_){}}}
 function rtHandle(m){
-  if(m.type==="roster"){(m.users||[]).forEach(u=>{if(u&&u.id&&u.id!==_rtSelfId)_rtPeers[u.id]=u;});renderPresence();}
-  else if(m.type==="join"){if(m.user&&m.user.id&&m.user.id!==_rtSelfId){_rtPeers[m.user.id]=m.user;renderPresence();}}
-  else if(m.type==="leave"){if(m.user&&m.user.id){delete _rtPeers[m.user.id];clearRemoteIssueOutlines(m.user.id);removeCursor(m.user.id);renderPresence();}}
+  if(m.type==="roster"){
+    (m.users||[]).forEach(u=>{if(u&&u.id&&u.id!==_rtSelfId){_rtPeers[u.id]=u;_rtPagePresence[u.id]={user:u,page:u.page||null};}});
+    renderPresence();renderPageTabs();
+  }
+  else if(m.type==="join"){if(m.user&&m.user.id&&m.user.id!==_rtSelfId){_rtPeers[m.user.id]=m.user;_rtPagePresence[m.user.id]={user:m.user,page:m.page||null};renderPresence();renderPageTabs();}}
+  else if(m.type==="leave"){if(m.user&&m.user.id){delete _rtPeers[m.user.id];delete _rtPagePresence[m.user.id];clearRemoteIssueOutlines(m.user.id);removeCursor(m.user.id);renderPresence();renderPageTabs();}}
+  else if(m.type==="page_focus"){if(m.user&&m.user.id&&m.user.id!==_rtSelfId){_rtPagePresence[m.user.id]={user:m.user,page:m.page_url||null};renderPageTabs();}}
   else if(m.type==="issue"){if(m.user&&m.user.id!==_rtSelfId)applyRemoteIssue(m.user,m.issueId,m.active);}
   else if(m.type==="cursor"){if(m.user&&m.user.id!==_rtSelfId)moveCursor(m.user,m);}
 }
