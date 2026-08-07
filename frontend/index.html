@@ -281,7 +281,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .status-opt:hover{background:rgba(255,255,255,.06);}
 .status-opt .dot{width:10px; height:10px; border-radius:50%; flex:none;}
 .col-done{width:172px;} .col-sec{width:150px;} .col-type{width:124px;} .col-obs{width:110px;} .col-notes{width:90px;}
-.col-chk{width:36px;} .col-num{width:34px;}
+.col-chk{width:36px;} .col-num{width:46px;}
 .chk-cell{text-align:center;}
 /* Custom box instead of the native checkbox (which just renders as a plain
    light square on most browsers/OSes, clashing with the dark theme) — gray
@@ -304,7 +304,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .chk-cell input:indeterminate::after,.row-chk:indeterminate::after{
   content:""; position:absolute; left:3px; top:6.5px; width:8px; height:2px; background:var(--pink-2);
 }
-.num-cell{color:var(--muted); font-size:12px; text-align:center; font-variant-numeric:tabular-nums;}
+.num-cell{color:var(--muted); font-size:12px; text-align:center; font-variant-numeric:tabular-nums; white-space:nowrap;}
 /* ---- bulk-select action bar ---- */
 .bulk-bar{display:flex; align-items:center; gap:14px; background:var(--card-2); border:1px solid var(--border-2);
   border-radius:10px; padding:10px 14px; margin-bottom:12px;}
@@ -738,7 +738,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10ck · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10cl · Punch Toolkit</span>
   </footer>
 </div>
 
