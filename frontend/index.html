@@ -738,7 +738,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10cj · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10ck · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -1705,7 +1705,7 @@ function renderTable(filter){
   if(!rows.length){body.innerHTML=`<tr><td colspan="9" class="no-rows">✓ No issues in this category.</td></tr>`;$("#rowCount").textContent="0 issues";renderBulkBar();return;}
   body.innerHTML=rows.map(({i,idx,done})=>{const id=issueId(i),st=statusOf(id);const nc=state.noteCounts.get(id)||0;return `<tr class="${done?'done':''}" data-issue-id="${esc(id)}">
     <td class="chk-cell"><input type="checkbox" class="row-chk" data-id="${esc(id)}"${state.selectedIssues.has(id)?" checked":""}></td>
-    <td class="num-cell">${done?"":idx+1}</td>
+    <td class="num-cell">${idx+1}</td>
     <td>${esc(i.section)}</td>
     <td><span class="type-pill">${esc(i.type)}</span></td>
     <td class="cell-approved">${i.approved==="—"?'<span class="empty-dash">—</span>':esc(i.approved)}</td>
