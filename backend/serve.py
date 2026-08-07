@@ -575,6 +575,23 @@ def _issue_stats(issues, score):
     return total, resolved, live
 
 
+def _resolver_counts(issues):
+    """How many issues each named person resolved in this run — driven by the
+    per-issue resolved_by field (see handle_issue_toggle), not the coarser
+    run-level `contributors` list (which just means "touched something",
+    Done or not). Issues resolved before resolved_by existed, or resolved
+    without a signed-in name, have no attribution and are simply left out
+    rather than credited to a made-up "Unknown" bucket."""
+    counts = {}
+    for i in issues:
+        if not isinstance(i, dict) or i.get("type") == "Observation":
+            continue
+        if i.get("status") in ("done", "solved_qa", "dismissed") and i.get("resolved_by"):
+            name = i["resolved_by"]
+            counts[name] = counts.get(name, 0) + 1
+    return counts
+
+
 def _project_summary(row):
     (pid, name, site_name, page_name, page_url, score, issues, created_at, updated_at,
      last_run_at, doc_filename, doc_url, slug) = row
@@ -902,6 +919,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     "issues_resolved": resolved, "doc_filename": doc_filename,
                     "ran_by": ran_by or None, "page_url": page_url, "page_name": page_name,
                     "contributors": contributors or [],
+                    "resolvers": _resolver_counts(issues),
                     "completed_at": completed_at.isoformat() if completed_at else None,
                     "forked_from": forked_from,
                 })
@@ -1043,6 +1061,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                         if status is not None:
                             issue["status"] = status
                             issue["done"] = status in ("done", "solved_qa", "dismissed")  # keep the legacy flag in sync
+                            # Per-issue attribution: who actually resolved THIS one —
+                            # lets History show "who resolved how many", not just a flat
+                            # "these people touched something" list. Cleared on an undo
+                            # (back to not_started/in_progress) so a reopened issue
+                            # doesn't keep crediting whoever closed it before.
+                            issue["resolved_by"] = changed_by if issue["done"] and changed_by else None
                         else:
                             issue["done"] = done
                         changed = True

@@ -401,7 +401,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .history-trigger:hover{border-color:var(--pink); color:var(--pink-2);}
 .history-trigger .ico{color:var(--pink);}
 .history-trigger .count{background:var(--pink-dim); color:var(--pink-2); border-radius:20px; padding:1px 8px; font-size:11.5px;}
-.hist-box{width:100%; max-width:1140px; max-height:min(88vh,820px); display:flex; flex-direction:column; padding:0; overflow:hidden;}
+.hist-box{width:100%; max-width:1320px; max-height:min(88vh,820px); display:flex; flex-direction:column; padding:0; overflow:hidden;}
 .hist-head{display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:22px 24px 16px; border-bottom:1px solid var(--border);}
 .hist-head h3{margin:0 0 3px; display:flex; align-items:center; gap:9px; font-size:19px;}
 .hist-head h3 .ico{width:19px; height:19px; color:var(--pink);}
@@ -464,7 +464,9 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .run-view-btn{background:transparent; border:none; color:var(--pink); cursor:pointer; padding:4px; display:inline-flex; align-items:center; justify-content:center;}
 .run-view-btn:hover{color:var(--pink-2);}
 .run-view-btn .ico{width:17px; height:17px;}
-.run-by{color:var(--text-2); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.run-by{display:flex; align-items:center; gap:6px; color:var(--text-2); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.run-by-avatar{display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; flex:none;
+  background:var(--pink-dim); color:var(--pink-2); font-size:8.5px; font-weight:700;}
 .run-summary > div:last-child{text-align:right;}
 .run-current-tag{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.5px;
   color:var(--pink-2); background:var(--pink-dim); border:1px solid rgba(255,20,73,.3); border-radius:6px; padding:3px 7px;}
@@ -475,11 +477,10 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .run-status-tag.completed{color:var(--green); background:rgba(47,214,166,.12); border:1px solid rgba(47,214,166,.35);}
 .run-status-tag.progress{color:var(--amber); background:rgba(245,165,36,.12); border:1px solid rgba(245,165,36,.35);}
 .run-status-tag svg{width:10px; height:10px;}
-.run-contrib-avatars{display:flex; flex:none;}
 .run-contrib-avatar{width:22px; height:22px; border-radius:50%; border:2px solid var(--input); background:var(--pink-dim); color:var(--pink-2);
-  font-size:9.5px; font-weight:700; display:flex; align-items:center; justify-content:center; margin-left:-7px; flex:none;}
-.run-contrib-avatar:first-child{margin-left:0;}
+  font-size:9.5px; font-weight:700; display:flex; align-items:center; justify-content:center; flex:none;}
 .run-contrib-names{font-size:11.5px; color:var(--text-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.run-resolver-chip{display:inline-flex; align-items:center; gap:6px; font-size:11.5px; color:var(--text-2); white-space:nowrap;}
 .run-fork-note{font-size:11px; color:var(--muted); display:flex; align-items:center; gap:5px;}
 .run-fork-note svg{width:12px; height:12px; color:var(--border-2); flex:none;}
 @media (max-width:640px){
@@ -488,7 +489,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 }
 
 /* read-only revision snapshot viewer */
-.rev-box{width:100%; max-width:1140px; max-height:min(88vh,820px); display:flex; flex-direction:column; padding:0; overflow:hidden;}
+.rev-box{width:100%; max-width:1320px; max-height:min(88vh,820px); display:flex; flex-direction:column; padding:0; overflow:hidden;}
 .rev-head{display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:22px 24px 16px; border-bottom:1px solid var(--border);}
 .rev-head h3{margin:0 0 3px; display:flex; align-items:center; gap:9px; font-size:19px;}
 .rev-head h3 .ico{width:19px; height:19px; color:var(--pink);}
@@ -499,6 +500,8 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .rev-stat{background:var(--input); border:1px solid var(--border); border-radius:10px; padding:9px 15px; text-align:center;}
 .rev-stat b{display:block; font-size:18px; font-weight:800; color:var(--pink); font-variant-numeric:tabular-nums;}
 .rev-stat span{font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em;}
+.rev-resolvers{display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:0 24px 14px;}
+.rev-resolvers:empty{display:none;}
 .rev-table-wrap{overflow:auto; padding:0 24px 24px; flex:1;}
 .rev-table{width:100%; border-collapse:collapse; font-size:12.5px;}
 .rev-table th{text-align:left; color:var(--muted); font-weight:600; font-size:10.5px; text-transform:uppercase;
@@ -716,7 +719,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10cd · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10ce · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -771,6 +774,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
     </div>
     <div class="readonly-banner"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Read-only — this is a snapshot from that run, nothing here can be edited</div>
     <div class="rev-stats" id="revStats"></div>
+    <div class="rev-resolvers" id="revResolvers"></div>
     <div class="rev-table-wrap">
       <table class="rev-table">
         <thead><tr><th>Section</th><th>Issue Type</th><th>Approved Copy</th><th>Current Page Copy</th><th>Notes</th><th>Status</th></tr></thead>
@@ -2510,12 +2514,18 @@ async function renderHistoryBody(){
   const list=$("#runList");
   const byId=new Map(state.runs.map(x=>[x.id,x]));
   list.innerHTML=runs.map((r,i)=>{
-    const contributors=r.contributors||[];
+    const resolvers=r.resolvers||{};
+    const resolverNames=Object.keys(resolvers);
     const statusTag=r.completed_at
       ?`<span class="run-status-tag completed"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>Completed</span>`
       :`<span class="run-status-tag progress">${r.issues_resolved}/${r.issues_total} resolved</span>`;
-    const avatars=contributors.length?`<div class="run-contrib-avatars">${contributors.map(name=>`<div class="run-contrib-avatar">${esc(tabInitials(name))}</div>`).join("")}</div>`:"";
-    const names=contributors.length?`<span class="run-contrib-names">${esc(contributors.join(", "))}</span>`:`<span class="run-contrib-names muted">No status changes yet</span>`;
+    // Who resolved HOW MANY issues, not just "who touched something" — one
+    // chip per person, each with their own count, driven by each issue's
+    // resolved_by field (see _resolver_counts() in serve.py).
+    const resolverChips=resolverNames.length
+      ?resolverNames.map(name=>`<span class="run-resolver-chip"><span class="run-contrib-avatar">${esc(tabInitials(name))}</span>${esc(name)} · ${resolvers[name]} resolved</span>`).join("")
+      :`<span class="run-contrib-names muted">No status changes yet</span>`;
+    const byAvatar=r.ran_by?`<span class="run-by-avatar">${esc(tabInitials(r.ran_by))}</span>`:"";
     const parent=r.forked_from?byId.get(r.forked_from):null;
     const forkNote=r.forked_from?`<span class="run-fork-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v8a4 4 0 0 0 4 4h4"/><path d="M18 13v8"/></svg>Continued after ${parent?fmtDate(parent.ran_at):"an earlier run"} was completed</span>`:"";
     return `<div class="run-row${i===0?' current':''}" data-run="${r.id}">
@@ -2530,10 +2540,10 @@ async function renderHistoryBody(){
           ?`<a class="run-url" href="${esc(r.page_url)}" target="_blank" rel="noopener" title="${esc(r.page_url)}">${esc(r.page_url)}</a>`
           :'<span class="muted">—</span>'}
         <div class="run-view-col"><button class="run-view-btn" data-view="${r.id}" title="Summary (read-only)"><svg class="ico" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
-        <div class="run-by" title="${r.ran_by?esc(r.ran_by):'—'}">${r.ran_by?esc(r.ran_by):'<span class="muted">—</span>'}</div>
+        <div class="run-by" title="${r.ran_by?esc(r.ran_by):'—'}">${byAvatar}${r.ran_by?esc(r.ran_by):'<span class="muted">—</span>'}</div>
         <div>${i===0?'<span class="run-current-tag">Actual</span>':''}</div>
       </div>
-      <div class="run-contrib-row">${statusTag}${avatars}${names}${forkNote}</div>
+      <div class="run-contrib-row">${statusTag}${resolverChips}${forkNote}</div>
     </div>`;
   }).join("");
   list.querySelectorAll("[data-doc]").forEach(b=>b.addEventListener("click",()=>
@@ -2559,8 +2569,8 @@ async function openRevisionView(runId,r){
   try{
     const run=state.runDetails[runId]||(state.runDetails[runId]=await apiGet(`/projects/${state.projectId}/runs/${runId}`));
     const ranAt=run.ran_at||(r&&r.ran_at);
-    $("#revSub").textContent=`${fmtDate(ranAt)}, ${new Date(ranAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`+
-      (run.ran_by?` · By ${run.ran_by}`:"");
+    $("#revSub").innerHTML=`${fmtDate(ranAt)}, ${new Date(ranAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`+
+      (run.ran_by?` · By <span class="run-by-avatar" style="vertical-align:-3px;">${esc(tabInitials(run.ran_by))}</span> ${esc(run.ran_by)}`:"");
     const stats=computeRunStats(run.issues);
     $("#revStats").innerHTML=`
       <div class="rev-stat"><b>${stats.total}</b><span>Total Issues</span></div>
@@ -2569,6 +2579,18 @@ async function openRevisionView(runId,r){
       <div class="rev-stat"><b>${stats.extra}</b><span>Extra Copy</span></div>
       <div class="rev-stat"><b>${stats.cta}</b><span>CTA / Link</span></div>
       <div class="rev-stat" title="Original AI comparison score: ${run.score??"—"}%"><b>${run.live_score??run.score??"—"}%</b><span>Match Score</span></div>`;
+    // Same per-person "who resolved how many" breakdown as the history list,
+    // computed here client-side (this view already has the full issues array,
+    // no need for the server to send a separate resolvers summary too).
+    const resolverCounts={};
+    (run.issues||[]).forEach(i=>{
+      if(i.type!=="Observation"&&["done","solved_qa","dismissed"].includes(i.status)&&i.resolved_by){
+        resolverCounts[i.resolved_by]=(resolverCounts[i.resolved_by]||0)+1;
+      }
+    });
+    $("#revResolvers").innerHTML=Object.keys(resolverCounts).map(name=>
+      `<span class="run-resolver-chip"><span class="run-contrib-avatar">${esc(tabInitials(name))}</span>${esc(name)} · ${resolverCounts[name]} resolved</span>`
+    ).join("");
     const rows=(run.issues||[]).filter(i=>i.type!=="Observation");
     $("#revBody").innerHTML=rows.length?rows.map(i=>{
       const st=i.status||null;const rid=issueId(i);const nc=state.noteCounts.get(rid)||0;
