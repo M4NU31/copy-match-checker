@@ -465,8 +465,8 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .run-view-btn:hover{color:var(--pink-2);}
 .run-view-btn .ico{width:17px; height:17px;}
 .run-by{display:flex; align-items:center; gap:6px; color:var(--text-2); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-.run-by-avatar{display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; flex:none;
-  background:var(--pink-dim); color:var(--pink-2); font-size:8.5px; font-weight:700;}
+.run-by-avatar{display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:50%; flex:none;
+  background:var(--pink-dim); color:var(--pink-2); font-size:9px; font-weight:700;}
 .run-summary > div:last-child{text-align:right;}
 .run-current-tag{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.5px;
   color:var(--pink-2); background:var(--pink-dim); border:1px solid rgba(255,20,73,.3); border-radius:6px; padding:3px 7px;}
@@ -488,7 +488,9 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .rev-head{display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:22px 24px 16px; border-bottom:1px solid var(--border);}
 .rev-head h3{margin:0 0 3px; display:flex; align-items:center; gap:9px; font-size:19px;}
 .rev-head h3 .ico{width:19px; height:19px; color:var(--pink);}
-.rev-head p{margin:0; color:var(--text-2); font-size:12.5px;}
+.rev-head p{margin:0; color:var(--text-2); font-size:12.5px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+.rev-sub-sep{color:var(--muted);}
+.rev-by-group{display:inline-flex; align-items:center; gap:7px;}
 .readonly-banner{display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12px; padding:14px 24px 0;}
 .readonly-banner .ico{width:14px; height:14px;}
 .rev-stats{display:grid; grid-template-columns:repeat(6,1fr); gap:10px; padding:14px 24px; width:100%;}
@@ -716,7 +718,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10cg · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10ch · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -2560,8 +2562,12 @@ async function openRevisionView(runId,r){
   try{
     const run=state.runDetails[runId]||(state.runDetails[runId]=await apiGet(`/projects/${state.projectId}/runs/${runId}`));
     const ranAt=run.ran_at||(r&&r.ran_at);
-    $("#revSub").innerHTML=`${fmtDate(ranAt)}, ${new Date(ranAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`+
-      (run.ran_by?` · By <span class="run-by-avatar" style="vertical-align:-3px;">${esc(tabInitials(run.ran_by))}</span> ${esc(run.ran_by)}`:"");
+    // A flex row (not inline text + a manual vertical-align hack on the
+    // avatar) so the avatar sits properly centered against the text instead
+    // of eyeballing an offset, with real gap between date/"By"/avatar/name
+    // instead of everything butting up against a single " · By " string.
+    const byGroup=run.ran_by?`<span class="rev-sub-sep">·</span><span class="rev-by-group">By <span class="run-by-avatar">${esc(tabInitials(run.ran_by))}</span>${esc(run.ran_by)}</span>`:"";
+    $("#revSub").innerHTML=`<span>${fmtDate(ranAt)}, ${new Date(ranAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span>${byGroup}`;
     const stats=computeRunStats(run.issues);
     $("#revStats").innerHTML=`
       <div class="rev-stat"><b>${stats.total}</b><span>Total Issues</span></div>
