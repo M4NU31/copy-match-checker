@@ -72,8 +72,6 @@ body{
 }
 .card-head h2{margin:0; font-size:16px; display:flex; align-items:center; gap:8px;}
 .card-head h2 .ico{color:var(--pink);}
-.card-head .hint{margin-left:auto; color:var(--muted); font-size:12px;}
-
 /* ---------- fields ---------- */
 .field{display:flex; flex-direction:column; gap:6px; margin-bottom:14px;}
 .field>span{font-size:12px; color:var(--text-2); font-weight:600; display:flex; align-items:center; gap:6px;}
@@ -178,9 +176,6 @@ select{appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='h
 .btn-outline{background:transparent; border-color:var(--border-2); color:var(--text);}
 .btn-outline:hover{border-color:var(--pink); color:var(--pink-2);}
 .btn-ghost{background:var(--card); border-color:var(--border); color:var(--text-2);}
-.drive-row{display:flex; align-items:center; gap:12px; margin-top:12px;}
-.drive-or{color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.06em;}
-.btn-drive{display:inline-flex; align-items:center; gap:8px; padding:9px 14px; font-size:13px; font-weight:500;}
 .modal-actions{display:flex; gap:10px; justify-content:flex-end; margin-top:18px;}
 .modal-actions .btn{min-width:110px; justify-content:center;}
 .saved-doc{display:flex; align-items:center; gap:10px; margin-top:12px; padding:10px 12px; border:1px solid var(--border); border-radius:8px; background:var(--card-2); font-size:13px;}
@@ -261,8 +256,6 @@ select{appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='h
 .stat .lbl{font-size:11.5px; font-weight:500; color:#E8E2DF; margin-top:8px;}
 .tab-stat{cursor:pointer; transition:border-color .18s ease, background .18s ease, border-style .18s ease;}
 .tab-stat:hover,.tab-stat.active{border-style:dashed; border-color:var(--pink); background:var(--pink-dim);}
-.c-total{color:var(--pink-2);} .c-red{color:var(--pink);} .c-amber{color:var(--amber);}
-.c-slate{color:var(--slate);} .c-green{color:var(--green);}
 
 /* ---------- tabs + table ---------- */
 .tabs{display:flex; gap:4px; flex-wrap:wrap; border-bottom:1px solid var(--border); margin-bottom:4px;}
@@ -295,7 +288,6 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .status-opt:hover{background:rgba(255,255,255,.06);}
 .status-opt .dot{width:10px; height:10px; border-radius:50%; flex:none;}
 .col-done{width:172px;} .col-sec{width:150px;} .col-type{width:124px;} .col-obs{width:110px;} .col-notes{width:90px;}
-.view-cell{text-align:center;}
 .obs-cell{text-align:center;}
 .obs-btn{background:transparent; border:none; color:var(--muted); cursor:pointer; padding:2px; display:inline-flex; vertical-align:-2px; transition:color .15s ease;}
 .obs-btn:hover{color:var(--pink);}
@@ -346,16 +338,6 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .modal-head h3 .ico{color:var(--pink);}
 .how-steps{padding-left:20px; line-height:1.85; color:var(--text-2);}
 .how-steps strong{color:var(--text);}
-/* locate-in-document preview */
-.locate-box{max-width:900px;}
-.locate-sub{margin:-4px 0 10px;}
-.locate-body{max-height:72vh; overflow:auto; background:var(--input); border:1px solid var(--border); border-radius:10px; padding:12px;}
-.locate-body canvas{width:100%; height:auto; display:block; border-radius:6px;}
-.doc-text{white-space:pre-wrap; font-size:13px; line-height:1.75; color:var(--text-2); font-family:ui-monospace,monospace;}
-.doc-hit{background:rgba(255,20,73,.32); color:#fff; border-radius:3px; padding:1px 2px;}
-.locate-btn{background:transparent; border:none; color:#FF1449; cursor:pointer; padding:2px; display:inline-flex; vertical-align:-2px;}
-.locate-btn:hover{color:var(--pink-2);}
-.locate-btn .ico{width:15px; height:15px;}
 .toast{position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--card-2);
   border:1px solid var(--border-2); color:var(--text); padding:12px 20px; border-radius:10px; z-index:60;
   box-shadow:0 8px 30px rgba(0,0,0,.5); display:flex; align-items:center; gap:9px;}
@@ -740,7 +722,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10ca · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10cb · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -816,15 +798,6 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
       <li><strong>Export</strong> the report as CSV or copy it to paste into a ticket.</li>
     </ol>
     <p class="muted small">The page is fetched automatically. It must be public and reachable — password-protected or firewalled pages can't be read.</p>
-  </div>
-</div>
-
-<!-- locate-in-document preview modal -->
-<div class="modal hidden" id="locateModal">
-  <div class="modal-box locate-box">
-    <div class="modal-head"><h3><svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Locate in document</h3><button class="x" id="closeLocate"><svg class="ico" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
-    <div class="locate-sub muted small" id="locateSub"></div>
-    <div id="locateBody" class="locate-body"></div>
   </div>
 </div>
 
@@ -1803,58 +1776,6 @@ async function postNote(){
 $("#closeNotes")&&$("#closeNotes").addEventListener("click",()=>$("#notesModal").classList.add("hidden"));
 $("#notesModal")&&$("#notesModal").addEventListener("click",e=>{if(e.target.id==="notesModal")$("#notesModal").classList.add("hidden");});
 $("#notesSend")&&$("#notesSend").addEventListener("click",postNote);
-
-/* ---------------- locate in document ---------------- */
-function openLocate(sub){$("#locateSub").textContent=sub||"";$("#locateModal").classList.remove("hidden");}
-$("#closeLocate")&&$("#closeLocate").addEventListener("click",()=>$("#locateModal").classList.add("hidden"));
-$("#locateModal")&&$("#locateModal").addEventListener("click",e=>{if(e.target.id==="locateModal")$("#locateModal").classList.add("hidden");});
-
-function showDocText(text,sub){
-  const body=$("#locateBody"),doc=state.docText||"";
-  const needle=(text||"").trim().slice(0,80),idx=needle?doc.toLowerCase().indexOf(needle.toLowerCase()):-1;
-  let html;
-  if(idx>=0){const end=Math.min(doc.length,idx+(text||"").length);
-    html=esc(doc.slice(0,idx))+'<mark class="doc-hit" id="docHit">'+esc(doc.slice(idx,end))+'</mark>'+esc(doc.slice(end));}
-  else html=esc(doc);
-  openLocate(sub||(idx>=0?"Highlighted in the document text":"Couldn’t pinpoint the exact spot — showing the document text"));
-  body.innerHTML='<div class="doc-text">'+html+'</div>';
-  setTimeout(()=>{const h=$("#docHit");if(h)h.scrollIntoView({block:"center"});},40);
-}
-async function locateIssue(issue){
-  const text=issue.approved&&issue.approved!=="—"?issue.approved:issue.current;
-  const body=$("#locateBody");const T=normKey(text);
-  if(state.docKind==="pdf"&&state.pdfDoc){
-    const matches=state.pdfLines.map(l=>({l,s:normKey(l.str)})).filter(o=>o.s.length>3&&(T.includes(o.s)||o.s.includes(T)));
-    const counts={};matches.forEach(m=>counts[m.l.page]=(counts[m.l.page]||0)+1);
-    const pageNum=matches.length?+Object.keys(counts).sort((a,b)=>counts[b]-counts[a])[0]:0;
-    const pageRef=pageNum?`Found on page ${pageNum} of ${state.pdfDoc.numPages}`:"";
-    openLocate((pageRef||"Approved copy")+" · rendering page…");body.innerHTML='<p class="muted small">Rendering page…</p>';
-    try{
-      if(!matches.length)throw new Error("no-match");
-      const pm=matches.filter(m=>m.l.page===pageNum).map(m=>m.l);
-      const page=await state.pdfDoc.getPage(pageNum);
-      const scale=1.6,viewport=page.getViewport({scale});
-      const canvas=document.createElement("canvas");canvas.width=viewport.width;canvas.height=viewport.height;
-      const ctx=canvas.getContext("2d");
-      await Promise.race([page.render({canvasContext:ctx,viewport}).promise,
-        new Promise((_,rej)=>setTimeout(()=>rej(new Error("render-timeout")),8000))]);
-      let topY=Infinity;
-      pm.forEach(m=>{const tl=viewport.convertToViewportPoint(m.x0,m.y1),br=viewport.convertToViewportPoint(m.x1,m.y0);
-        const x=Math.min(tl[0],br[0]),y=Math.min(tl[1],br[1]),w=Math.abs(br[0]-tl[0]),h=Math.abs(br[1]-tl[1]);
-        ctx.fillStyle="rgba(255,20,73,.30)";ctx.fillRect(x-2,y-2,w+4,h+4);
-        ctx.strokeStyle="rgba(255,20,73,.9)";ctx.lineWidth=2;ctx.strokeRect(x-2,y-2,w+4,h+4);
-        topY=Math.min(topY,y);});
-      openLocate(`${pageRef} · highlighted in pink`);
-      body.innerHTML="";body.appendChild(canvas);
-      setTimeout(()=>{body.scrollTop=Math.max(0,(topY/viewport.height)*canvas.clientHeight-90);},40);
-    }catch(e){
-      // page render unavailable → reliable text fallback with the page reference
-      showDocText(text, pageRef?`${pageRef} — showing the document text (page preview unavailable here).`:"Showing the document text.");
-    }
-  }else{
-    showDocText(text);  // DOCX / text
-  }
-}
 
 /* ---------------- export ---------------- */
 function exportCsv(){
