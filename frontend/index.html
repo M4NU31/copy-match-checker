@@ -716,7 +716,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10cc · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10cd · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -2259,17 +2259,30 @@ function resetToolState(){
   $("#runNote").textContent="";
   $("#results").classList.add("hidden");
 }
+// Bumped on every loadProject() call so a stale response from a PREVIOUS
+// project (switched away from before its fetch resolved) can recognize it's
+// stale and discard itself instead of overwriting the now-current project's
+// fields — without this, quickly switching projects could leave one
+// project's Site Name/Page Name/Page URL bleeding into another's, since
+// whichever fetch happened to resolve LAST simply won regardless of which
+// project was actually still open.
+let _loadToken=0;
 async function loadProject(id){
+  const token=++_loadToken;
   resetToolState();
   state.projectId=id;
   $("#projectTitleHeading").textContent="Loading…";
   $("#historyTrigger").classList.remove("hidden");
   try{
     const p=await apiGet(`/projects/${id}`);
+    if(token!==_loadToken)return;  // a newer loadProject() has since started — this response is stale
     $("#projectTitleHeading").textContent=p.name;state.projectName=p.name||"";
-    $("#clientName").value=p.site_name||"";
-    $("#pageName").value=p.page_name||"";
-    $("#pageUrl").value=p.page_url||"";
+    // Site Name/Page Name/Page URL deliberately start blank, always — even
+    // reopening the SAME project — rather than prefilling from whatever page
+    // was last checked. A stale URL sitting in the field silently invited
+    // running the wrong check, or (via the race above) another project's URL
+    // entirely; typing/pasting fresh each time is the only way to guarantee
+    // the box shows what you actually intend to check next.
     // No auto-render from the PROJECT's data here on purpose: which page's
     // table is showing is per-teammate, local state — see the Page Tabs
     // section. restoreTabsFromStorage() below puts YOUR tabs back (a refresh
@@ -2286,9 +2299,11 @@ async function loadProject(id){
       renderDocChips();
     }
   }catch(e){
+    if(token!==_loadToken)return;
     $("#projectTitleHeading").textContent="Project";
     toast("Could not load project: "+(e.message||e));
   }
+  if(token!==_loadToken)return;
   loadRuns();
   rtConnect(id);
   restoreTabsFromStorage();
@@ -2301,11 +2316,13 @@ async function loadProject(id){
    re-download that exact file instead of guessing from a filename alone. */
 async function loadRuns(){
   if(!state.projectId)return;
+  const token=_loadToken,pid=state.projectId;
   try{
-    const data=await apiGet(`/projects/${state.projectId}/runs`);
+    const data=await apiGet(`/projects/${pid}/runs`);
+    if(token!==_loadToken||pid!==state.projectId)return;  // a different project has since loaded
     state.runs=data.runs||[];
     $("#historyCount").textContent=state.runs.length;
-  }catch(e){state.runs=[];$("#historyCount").textContent="0";}
+  }catch(e){if(token!==_loadToken||pid!==state.projectId)return;state.runs=[];$("#historyCount").textContent="0";}
 }
 
 /* ---------------- page tabs (pages checked recently, this visit) ----------------
@@ -2325,14 +2342,16 @@ function saveTabsToStorage(){
   try{localStorage.setItem(tabsStorageKey(state.projectId),JSON.stringify({tabs:state.siteTabs,activeUrl:state.activeTabUrl}));}catch(_){}
 }
 async function restoreTabsFromStorage(){
+  const token=_loadToken,pid=state.projectId;
   let saved=null;
-  try{saved=JSON.parse(localStorage.getItem(tabsStorageKey(state.projectId))||"null");}catch(_){}
+  try{saved=JSON.parse(localStorage.getItem(tabsStorageKey(pid))||"null");}catch(_){}
   if(!saved||!Array.isArray(saved.tabs)||!saved.tabs.length)return;
+  if(token!==_loadToken||pid!==state.projectId)return;  // a different project has since loaded
   state.siteTabs=saved.tabs;
   renderPageTabs();
   if(saved.activeUrl){
     const t=state.siteTabs.find(t=>t.url===saved.activeUrl);
-    if(t)await selectPageTab(t.url,t.runId);
+    if(t)await selectPageTab(t.url,t.runId,token);
   }
 }
 function addSiteTab(url,name,runId){
@@ -2383,12 +2402,18 @@ function removeSiteTab(url){
   saveTabsToStorage();
   renderPageTabs();
 }
-async function selectPageTab(url,runId){
+async function selectPageTab(url,runId,token){
   if(state.isRunning){toast("Wait for the current check to finish");return;}
+  // token defaults to the CURRENT generation for a direct click; when called
+  // from restoreTabsFromStorage() it's passed the generation captured back
+  // when that restore started, so a project switch mid-restore is caught too.
+  if(token===undefined)token=_loadToken;
+  const pid=state.projectId;
   state.activeTabUrl=url;renderPageTabs();saveTabsToStorage();
   rtSend({type:"page_focus",page_url:url});
   try{
-    const r=await apiGet(`/projects/${state.projectId}/runs/${runId}`);
+    const r=await apiGet(`/projects/${pid}/runs/${runId}`);
+    if(token!==_loadToken||pid!==state.projectId)return;  // a different project has since loaded
     state.issues=r.issues||[];state.score=r.score||0;
     state.status=new Map((r.issues||[]).map(i=>[i.id,i.status||(i.done?"done":"not_started")]));
     state.meta={client:state.meta.client||"",page:r.page_name,url:r.page_url,cms:"—"};
@@ -2397,7 +2422,7 @@ async function selectPageTab(url,runId){
     renderAll();
     $("#runNote").textContent=`Showing ${r.page_name||"this page"} · ${new Date(r.ran_at).toLocaleString()}`;
     loadNoteCounts();
-  }catch(e){toast("Could not load this page's issues: "+(e.message||e));}
+  }catch(e){if(token!==_loadToken||pid!==state.projectId)return;toast("Could not load this page's issues: "+(e.message||e));}
 }
 function runScoreClass(score){
   if(score==null)return "na";
