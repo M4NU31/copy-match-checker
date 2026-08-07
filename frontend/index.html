@@ -104,23 +104,6 @@ select{appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='h
 .drive-box{background:transparent; font:inherit; color:var(--text);}
 .drive-box.busy{pointer-events:none; opacity:.6;}
 @media (max-width:640px){.picker-row{flex-direction:column;}}
-/* Once a doc is loaded, whichever box ISN'T the source it came from goes
-   flat/muted — makes it obvious at a glance which of the two you're
-   actually using. On this dark theme, opacity alone barely reads against
-   an already-near-black box, so the real signal is the background/border
-   stepping UP a shade (var(--input) -> var(--card), a visibly flatter,
-   more "washed out" tone) rather than down. Neither box gets this before
-   anything is loaded. */
-.picker-box.inactive{
-  background:var(--card); border-color:var(--border); filter:grayscale(1); opacity:.8;
-  transition:background .3s ease, border-color .3s ease, opacity .3s ease, filter .3s ease;
-}
-/* Resting state is muted/gray, but hovering it should still show the same
-   red dashed feedback as the active box — it's still clickable (to switch
-   sources), so it shouldn't look dead. Needed explicitly: .inactive's own
-   background/border-color would otherwise win over .dropzone:hover on
-   cascade order alone, since neither is more specific than the other. */
-.picker-box.inactive:hover{border-color:var(--pink); background:var(--pink-dim);}
 /* Approved-copy flash: shown the instant a load attempt settles — a green
    check when the file parsed fine, a red X (via .is-error) when it didn't —
    then fades to reveal the box underneath. Outline style (dashed ring, no
@@ -146,10 +129,19 @@ select{appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='h
    upload/drive boxes instead of the boxes themselves growing into it. */
 .card-source{display:flex; flex-direction:column;}
 .card-source .picker-row{flex:1;}
-.file-chip{display:flex; align-items:center; gap:12px; text-align:left; background:var(--card-2);
-  border:1px solid var(--border-2); border-radius:10px; padding:12px 14px;}
-.file-chip .file-ico{color:var(--pink);}
-.file-chip>div:nth-child(2){flex:1;}
+/* Multiple loaded documents stay INSIDE this box as a compact, scrollable
+   list of chips rather than a single big chip (or a separate row elsewhere)
+   — each chip shrinks to fit as more accumulate instead of growing the box. */
+.file-chip-list{display:flex; flex-direction:column; gap:6px; width:100%; max-height:150px; overflow-y:auto; text-align:left;}
+.file-chip{display:flex; align-items:center; gap:10px; text-align:left; background:var(--card-2);
+  border:1px solid var(--border-2); border-radius:9px; padding:8px 10px; cursor:pointer; transition:border-color .15s ease, background .15s ease;}
+.file-chip:hover{border-color:var(--pink-2);}
+.file-chip.active{border-color:var(--pink); background:var(--pink-dim);}
+.file-chip.pending{border-style:dashed;}
+.file-chip .file-ico{color:var(--pink); width:18px; height:18px; flex:none;}
+.file-chip>div:nth-child(2){flex:1; min-width:0;}
+.file-chip>div:nth-child(2) strong{display:block; font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.file-chip-btns{display:flex; gap:2px; flex:none;}
 .x{background:transparent; border:none; color:var(--muted); cursor:pointer; padding:4px; display:grid; place-items:center;}
 .x:hover{color:var(--pink);}
 .status{margin-top:13px; font-size:13px; color:var(--text-2); background:var(--input);
@@ -178,9 +170,6 @@ select{appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='h
 .btn-ghost{background:var(--card); border-color:var(--border); color:var(--text-2);}
 .modal-actions{display:flex; gap:10px; justify-content:flex-end; margin-top:18px;}
 .modal-actions .btn{min-width:110px; justify-content:center;}
-.saved-doc{display:flex; align-items:center; gap:10px; margin-top:12px; padding:10px 12px; border:1px solid var(--border); border-radius:8px; background:var(--card-2); font-size:13px;}
-.saved-doc>span{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text);}
-.saved-doc .btn-sm{padding:6px 12px; font-size:12px; text-decoration:none;}
 .doc-comments{margin-top:12px; border:1px solid var(--border); border-radius:8px; background:var(--card-2); padding:10px 12px;}
 .dc-head{font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-2); margin-bottom:6px;}
 .dc-list{max-height:220px; overflow-y:auto;}
@@ -230,6 +219,10 @@ select{appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='h
 .tab-avatar:first-child{margin-left:0;}
 .tab-avatar img{width:100%; height:100%; object-fit:cover;}
 .tab-name{font-size:13px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;}
+.tab-close{display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%;
+  color:var(--muted); flex:none; margin-left:2px; transition:color .15s ease, background .15s ease;}
+.tab-close:hover{color:var(--text); background:var(--card-2);}
+.tab-close .ico{width:11px; height:11px;}
 .tab-tooltip{position:absolute; left:50%; bottom:calc(100% + 10px); transform:translateX(-50%) translateY(4px);
   background:var(--card-2); border:1px solid var(--border-2); border-radius:9px; padding:9px 13px;
   font-size:12px; font-weight:500; line-height:1.4; color:var(--text); text-align:left;
@@ -288,6 +281,21 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .status-opt:hover{background:rgba(255,255,255,.06);}
 .status-opt .dot{width:10px; height:10px; border-radius:50%; flex:none;}
 .col-done{width:172px;} .col-sec{width:150px;} .col-type{width:124px;} .col-obs{width:110px;} .col-notes{width:90px;}
+.col-chk{width:36px;} .col-num{width:34px;}
+.chk-cell{text-align:center;}
+.chk-cell input,.row-chk{width:15px; height:15px; accent-color:var(--pink); cursor:pointer;}
+.num-cell{color:var(--muted); font-size:12px; text-align:center; font-variant-numeric:tabular-nums;}
+/* ---- bulk-select action bar ---- */
+.bulk-bar{display:flex; align-items:center; gap:14px; background:var(--card-2); border:1px solid var(--border-2);
+  border-radius:10px; padding:10px 14px; margin-bottom:12px;}
+.bulk-bar #bulkCount{font-size:12.5px; font-weight:700; color:var(--text); flex:none;}
+.bulk-actions{display:flex; gap:8px; flex-wrap:wrap; flex:1;}
+.bulk-status-btn{background:transparent; color:var(--sc); border:1px dashed var(--sc); border-radius:8px; font-size:11px;
+  font-weight:600; padding:5px 10px; cursor:pointer; white-space:nowrap; transition:.15s;}
+.bulk-status-btn:hover{background:color-mix(in srgb, var(--sc) 14%, transparent);}
+.bulk-clear{background:transparent; border:none; color:var(--muted); cursor:pointer; padding:4px; display:inline-flex; flex:none; border-radius:6px;}
+.bulk-clear:hover{color:var(--text); background:var(--card);}
+.bulk-clear .ico{width:14px; height:14px;}
 .obs-cell{text-align:center;}
 .obs-btn{background:transparent; border:none; color:var(--muted); cursor:pointer; padding:2px; display:inline-flex; vertical-align:-2px; transition:color .15s ease;}
 .obs-btn:hover{color:var(--pink);}
@@ -593,13 +601,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
             <p><strong>Upload file</strong> or drag &amp; drop</p>
             <p class="muted small">Supports PDF and DOCX · Max ~10 MB</p>
           </div>
-          <div id="dropFilled" class="hidden">
-            <div class="file-chip">
-              <svg class="ico ico-lg file-ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              <div><strong id="fileName">file.docx</strong><div class="muted small" id="fileMeta">DOCX · 0 KB</div></div>
-              <button class="x" id="clearFile" title="Remove"><svg class="ico ico-sm" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-            </div>
-          </div>
+          <div id="dropFilled" class="hidden"></div>
           <div class="approved-flash" id="dropApproved"><div class="approved-badge"><svg viewBox="0 0 24 24"><circle class="approved-ring" cx="12" cy="12" r="10"/><path class="approved-check" d="M7 12.3l3.2 3.2L17 8.5"/><g class="approved-x"><line x1="8.5" y1="8.5" x2="15.5" y2="15.5"/><line x1="15.5" y1="8.5" x2="8.5" y2="15.5"/></g></svg></div></div>
         </div>
         <div class="dropzone picker-box drive-box hidden" id="driveBox">
@@ -608,13 +610,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
             <p><strong>Search in Google Drive</strong></p>
             <p class="muted small">My Drive or Shared with me</p>
           </div>
-          <div id="driveFilled" class="hidden">
-            <div class="file-chip">
-              <svg class="ico ico-lg file-ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              <div><strong id="driveFileName">file.docx</strong><div class="muted small" id="driveFileMeta">DOCX · 0 KB</div></div>
-              <button class="x" id="clearDriveFile" title="Remove"><svg class="ico ico-sm" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-            </div>
-          </div>
+          <div id="driveFilled" class="hidden"></div>
           <div class="approved-flash" id="driveApproved"><div class="approved-badge"><svg viewBox="0 0 24 24"><circle class="approved-ring" cx="12" cy="12" r="10"/><path class="approved-check" d="M7 12.3l3.2 3.2L17 8.5"/><g class="approved-x"><line x1="8.5" y1="8.5" x2="15.5" y2="15.5"/><line x1="15.5" y1="8.5" x2="8.5" y2="15.5"/></g></svg></div></div>
         </div>
       </div>
@@ -623,13 +619,6 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
            better home for it elsewhere. setStatus() still runs everywhere it
            did before (guarded to no-op without #approvedStatus) so nothing
            else needs to change when it comes back. -->
-
-      <div class="saved-doc hidden" id="projectDocRow">
-        <svg class="ico ico-sm" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-        <span id="projectDocName">approved-copy</span>
-        <a class="btn btn-ghost btn-sm" id="projectDocDownload" download>Download</a>
-        <a class="btn btn-ghost btn-sm hidden" id="projectDocOpen" target="_blank" rel="noopener">Open in Drive</a>
-      </div>
 
       <!-- Document comments UI removed from this card per request (for any
            doc type — regular upload or Drive) pending a better home elsewhere.
@@ -702,10 +691,15 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
     <!-- issues -->
     <div class="card" style="margin-bottom:18px;">
+      <div class="bulk-bar hidden" id="bulkBar">
+        <span id="bulkCount">0 selected</span>
+        <div class="bulk-actions" id="bulkActions"></div>
+        <button class="bulk-clear" id="bulkClear" title="Clear selection"><svg class="ico ico-sm" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
       <div class="table-wrap">
         <table>
-          <colgroup><col class="col-sec"><col class="col-type"><col><col><col class="col-obs"><col class="col-notes"><col class="col-done"></colgroup>
-          <thead><tr><th>Section</th><th>Issue Type</th><th>Approved Copy</th><th>Current Page Copy</th><th>Suggestion</th><th>Notes</th><th class="done-cell">Status</th></tr></thead>
+          <colgroup><col class="col-chk"><col class="col-num"><col class="col-sec"><col class="col-type"><col><col><col class="col-obs"><col class="col-notes"><col class="col-done"></colgroup>
+          <thead><tr><th class="chk-cell"><input type="checkbox" id="selectAllChk" title="Select all"></th><th class="num-cell">#</th><th>Section</th><th>Issue Type</th><th>Approved Copy</th><th>Current Page Copy</th><th>Suggestion</th><th>Notes</th><th class="done-cell">Status</th></tr></thead>
           <tbody id="issuesBody"></tbody>
         </table>
       </div>
@@ -722,7 +716,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10cb · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10cc · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -836,7 +830,8 @@ const API_BASE=(location.hostname==="localhost"||location.hostname==="127.0.0.1"
 const state={approvedText:"",approvedBlocks:[],pages:[],issues:[],allIssues:[],status:new Map(),
   docKind:null,pdfDoc:null,pdfLines:[],docText:"",isDocx:false,isRunning:false,runCtrl:null,
   projectId:null,projectName:"",projects:[],runs:[],runDetails:{},docFile:null,noteCounts:new Map(),
-  siteTabs:[],activeTabUrl:null,currentRunCompleted:false};
+  siteTabs:[],activeTabUrl:null,currentRunCompleted:false,selectedIssues:new Set(),
+  docs:[],activeDocId:null,savedDocMeta:null};
 
 /* ---------------- projects API helpers ---------------- */
 async function apiCall(method,path,body){
@@ -1576,10 +1571,12 @@ function priRank(p){return {High:0,Medium:1,Low:2,Info:3}[p]??4;}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function issueId(i){return i.type+"|"+i.section+"|"+(i.approved||"")+"|"+(i.current||"");}
 // Per-issue status (state.status: id -> status). "done"/"solved_qa" are resolved.
-const STATUS_ORDER=["not_started","in_progress","done","solved_qa"];
-const STATUS_LABELS={not_started:"Not Started",in_progress:"In Progress",done:"Done",solved_qa:"Done in QA Tool"};
-const STATUS_COLORS={not_started:"#ff1449",in_progress:"#e8b018",done:"#15a37a",solved_qa:"#15a37a"};
-const RESOLVED_STATUS=new Set(["done","solved_qa"]);
+const STATUS_ORDER=["not_started","in_progress","done","solved_qa","dismissed"];
+const STATUS_LABELS={not_started:"Not Started",in_progress:"In Progress",done:"Done",solved_qa:"Done in QA Tool",dismissed:"Dismiss"};
+const STATUS_COLORS={not_started:"#ff1449",in_progress:"#e8b018",done:"#15a37a",solved_qa:"#15a37a",dismissed:"#7c8aa5"};
+// Dismissed = "not applicable, no action needed" — same as Done for scoring/
+// completion purposes (it still counts the issue as no longer outstanding).
+const RESOLVED_STATUS=new Set(["done","solved_qa","dismissed"]);
 function statusOf(id){return state.status.get(id)||"not_started";}
 function isResolvedId(id){return RESOLVED_STATUS.has(statusOf(id));}
 // Styled status dropdown: one shared menu positioned under the clicked status button.
@@ -1677,8 +1674,14 @@ function renderTable(filter){
   else rows=rows.filter(i=>i.type===filter);
   // keep priority order, but push resolved (checked) rows to the bottom
   rows=rows.map((i,idx)=>({i,idx,done:isResolvedId(issueId(i))})).sort((a,b)=>(a.done-b.done)||(a.idx-b.idx));
-  if(!rows.length){body.innerHTML=`<tr><td colspan="7" class="no-rows">✓ No issues in this category.</td></tr>`;$("#rowCount").textContent="0 issues";return;}
-  body.innerHTML=rows.map(({i,done})=>{const id=issueId(i),st=statusOf(id);const nc=state.noteCounts.get(id)||0;return `<tr class="${done?'done':''}" data-issue-id="${esc(id)}">
+  // Selections for ids no longer visible under this filter don't count toward
+  // the bulk bar — dropped here rather than left dangling in state.selectedIssues.
+  const visibleIds=new Set(rows.map(r=>issueId(r.i)));
+  Array.from(state.selectedIssues).forEach(id=>{if(!visibleIds.has(id))state.selectedIssues.delete(id);});
+  if(!rows.length){body.innerHTML=`<tr><td colspan="9" class="no-rows">✓ No issues in this category.</td></tr>`;$("#rowCount").textContent="0 issues";renderBulkBar();return;}
+  body.innerHTML=rows.map(({i,done},idx)=>{const id=issueId(i),st=statusOf(id);const nc=state.noteCounts.get(id)||0;return `<tr class="${done?'done':''}" data-issue-id="${esc(id)}">
+    <td class="chk-cell"><input type="checkbox" class="row-chk" data-id="${esc(id)}"${state.selectedIssues.has(id)?" checked":""}></td>
+    <td class="num-cell">${idx+1}</td>
     <td>${esc(i.section)}</td>
     <td><span class="type-pill">${esc(i.type)}</span></td>
     <td class="cell-approved">${i.approved==="—"?'<span class="empty-dash">—</span>':esc(i.approved)}</td>
@@ -1692,10 +1695,40 @@ function renderTable(filter){
   body.querySelectorAll(".notes-btn").forEach(b=>b.addEventListener("click",()=>{
     const iss=state.allIssues.find(x=>issueId(x)===b.dataset.notes); if(iss)openNotes(iss);
   }));
+  body.querySelectorAll(".row-chk").forEach(c=>c.addEventListener("click",e=>e.stopPropagation()));
+  body.querySelectorAll(".row-chk").forEach(c=>c.addEventListener("change",()=>{
+    if(c.checked)state.selectedIssues.add(c.dataset.id);else state.selectedIssues.delete(c.dataset.id);
+    renderBulkBar();
+  }));
+  renderBulkBar();
   const open=rows.filter(r=>!r.done).length;
   $("#rowCount").textContent=`${rows.length} row${rows.length===1?"":"s"} · ${open} open`;
   paintIssueOutlines();  // re-apply teammates' issue outlines after re-render
 }
+// Bulk-select bar: shows once 1+ rows are checked, letting one status change
+// apply to every selected issue at once instead of one row at a time.
+function renderBulkBar(){
+  const n=state.selectedIssues.size;
+  $("#bulkBar").classList.toggle("hidden",n===0);
+  $("#bulkCount").textContent=`${n} selected`;
+  const boxes=$$("#issuesBody .row-chk"),all=$("#selectAllChk");
+  if(all){all.checked=boxes.length>0&&boxes.every(b=>b.checked);all.indeterminate=n>0&&!all.checked;}
+}
+$("#bulkActions").innerHTML=STATUS_ORDER.map(s=>`<button class="bulk-status-btn" data-st="${s}" style="--sc:${STATUS_COLORS[s]}">${STATUS_LABELS[s]}</button>`).join("");
+$("#bulkActions").addEventListener("click",e=>{
+  const b=e.target.closest(".bulk-status-btn");if(!b)return;
+  Array.from(state.selectedIssues).forEach(id=>setIssueStatus(id,b.dataset.st));
+  state.selectedIssues.clear();
+  renderTable(state.activeFilter||"all");
+});
+$("#bulkClear").addEventListener("click",()=>{state.selectedIssues.clear();renderTable(state.activeFilter||"all");});
+$("#selectAllChk").addEventListener("change",e=>{
+  $$("#issuesBody .row-chk").forEach(b=>{
+    b.checked=e.target.checked;
+    if(e.target.checked)state.selectedIssues.add(b.dataset.id);else state.selectedIssues.delete(b.dataset.id);
+  });
+  renderBulkBar();
+});
 /* ---------------- observation popup ---------------- */
 function openObs(issue){
   $("#obsSub").textContent=`${issue.type} · ${issue.section}`;
@@ -1802,20 +1835,24 @@ dz.addEventListener("dragover",e=>{e.preventDefault();dz.classList.add("drag");}
 dz.addEventListener("dragleave",()=>dz.classList.remove("drag"));
 dz.addEventListener("drop",e=>{e.preventDefault();dz.classList.remove("drag");if(e.dataTransfer.files[0])loadFile(e.dataTransfer.files[0]);});
 fileInput.addEventListener("change",e=>e.target.files[0]&&loadFile(e.target.files[0]));
-// Shared by both remove buttons — whichever box (upload or Drive) is showing
-// the loaded file, clearing it resets BOTH back to their empty state so
-// there's never a stale "filled" box left over from a previous source.
-function clearApprovedDoc(){
+// Clears the active-doc fields only — used when the last loaded doc gets
+// removed but a "pending" saved-doc chip might still be sitting there
+// unloaded (see removeDocBundle()); that chip shouldn't vanish just because
+// nothing else is currently active.
+function clearActiveDocFieldsOnly(){
   state.approvedText="";state.approvedBlocks=[];state.pages=[];state.pdfDoc=null;state.pdfLines=[];state.docText="";
   state.docKind=null;state.docFile=null;state.docUrl=null;state.docSource=null;state.docComments=[];renderDocComments();
   fileInput.value="";
-  $("#dropFilled").classList.add("hidden");$("#dropEmpty").classList.remove("hidden");
-  $("#driveFilled").classList.add("hidden");$("#driveEmpty").classList.remove("hidden");
-  $("#dropzone").classList.remove("inactive");$("#driveBox").classList.remove("inactive");
   hidePageSelect();setStatus("No approved copy loaded yet.");
+  renderDocChips();
 }
-$("#clearFile").addEventListener("click",e=>{e.stopPropagation();clearApprovedDoc();});
-$("#clearDriveFile").addEventListener("click",e=>{e.stopPropagation();clearApprovedDoc();});
+// Wipes every loaded document (both boxes) AND any pending saved-doc chip —
+// used when leaving the project entirely (see resetToolState()), not by any
+// single remove button anymore (each chip removes just itself).
+function clearAllDocs(){
+  state.docs=[];state.activeDocId=null;state.savedDocMeta=null;
+  clearActiveDocFieldsOnly();
+}
 
 function hidePageSelect(){$("#pageSelectField").classList.add("hidden");$("#pageSelect").innerHTML="";}
 function renderPageSelect(pages){
@@ -1876,25 +1913,118 @@ $("#pageUrl").addEventListener("blur",()=>{
   if(guess)$("#clientName").value=guess;
 });
 
-// Shows the loaded-file chip in whichever box is the actual SOURCE ("upload"
-// or "drive") and resets the other one back to its empty state — a file
-// picked from Drive should visually land in the Drive box, not jump over to
-// the neighboring upload dropzone just because they share one load pipeline.
-function showLoadedIn(source,file){
-  const meta=`${file.name.split(".").pop().toUpperCase()} · ${(file.size/1024).toFixed(0)} KB`;
-  if(source==="drive"){
-    $("#driveFileName").textContent=file.name;$("#driveFileMeta").textContent=meta;
-    $("#driveEmpty").classList.add("hidden");$("#driveFilled").classList.remove("hidden");
-    $("#dropEmpty").classList.remove("hidden");$("#dropFilled").classList.add("hidden");
-    $("#dropzone").classList.add("inactive");$("#driveBox").classList.remove("inactive");
-    flashDocFlash("#driveApproved",true);
-  }else{
-    $("#fileName").textContent=file.name;$("#fileMeta").textContent=meta;
-    $("#dropEmpty").classList.add("hidden");$("#dropFilled").classList.remove("hidden");
-    $("#driveEmpty").classList.remove("hidden");$("#driveFilled").classList.add("hidden");
-    $("#driveBox").classList.add("inactive");$("#dropzone").classList.remove("inactive");
-    flashDocFlash("#dropApproved",true);
-  }
+/* ---------------- multiple loaded documents (upload + Drive, kept as chips) ----------------
+   Several approved-copy files can be loaded at once — they stay as separate,
+   selectable chips INSIDE whichever box they came from (upload vs Drive),
+   never merged into one combined document and never shown in a row below the
+   boxes. Only ONE is "active" at a time (drives approvedBlocks/pages/etc. —
+   every existing consumer of those fields is untouched); switching just swaps
+   which bundle's cached parse results are copied onto the flat state fields
+   below, the same shape loadFile() has always populated. */
+let _docIdSeq=0;
+function captureActiveDocFields(){
+  return {approvedText:state.approvedText,approvedBlocks:state.approvedBlocks,pages:state.pages,
+    docKind:state.docKind,pdfDoc:state.pdfDoc,pdfLines:state.pdfLines,docText:state.docText,
+    isDocx:state.isDocx,docComments:state.docComments,docFile:state.docFile,
+    activePageIdx:+($("#pageSelect").value||0)||0};
+}
+function applyDocFields(f){
+  state.approvedText=f.approvedText;state.approvedBlocks=f.approvedBlocks;state.pages=f.pages;
+  state.docKind=f.docKind;state.pdfDoc=f.pdfDoc;state.pdfLines=f.pdfLines;state.docText=f.docText;
+  state.isDocx=f.isDocx;state.docComments=f.docComments;state.docFile=f.docFile;
+}
+function addDocBundle(name,source,docUrl,meta){
+  const id="d"+(++_docIdSeq);
+  state.docs.push({id,name,source:source||"upload",docUrl:docUrl||null,meta,fields:captureActiveDocFields()});
+  state.activeDocId=id;
+  renderDocChips();
+}
+function switchActiveDoc(id){
+  const d=state.docs.find(x=>x.id===id);if(!d)return;
+  state.activeDocId=id;
+  applyDocFields(d.fields);
+  renderDocComments();
+  renderPageSelect(state.pages);
+  if(state.pages&&state.pages.length)selectPage(d.fields.activePageIdx||0,{initial:true});
+  else hidePageSelect();
+  autoSelectPageFromUrl();
+  renderDocChips();
+}
+// Local-only — never deletes anything server-side, just drops this chip from
+// the picker. Falls back to whichever doc is now last-loaded, if any.
+function removeDocBundle(id){
+  state.docs=state.docs.filter(d=>d.id!==id);
+  if(state.activeDocId===id){
+    const next=state.docs[state.docs.length-1];
+    state.activeDocId=next?next.id:null;
+    if(next)switchActiveDoc(next.id);
+    else clearActiveDocFieldsOnly();
+  }else renderDocChips();
+}
+// A project's previously-saved document is shown as a "pending" chip (cloud
+// icon, dashed border) rather than auto-fetched+parsed on every project open
+// — that would spend an AI segmentation call nobody asked for yet. Clicking
+// it fetches the real bytes and runs them through the normal loadFile()
+// pipeline, same as picking it fresh from Drive.
+async function loadSavedDoc(){
+  const meta=state.savedDocMeta;if(!meta)return;
+  try{
+    setStatus("Fetching the saved document…");
+    const res=await fetch(`${API_BASE}/projects/${state.projectId}/document`);
+    if(!res.ok)throw new Error("HTTP "+res.status);
+    const file=new File([await res.blob()],meta.filename||"approved-copy.docx");
+    state.savedDocMeta=null;
+    await loadFile(file,meta.docUrl||null,meta.docUrl?"drive":"upload");
+  }catch(e){toast("Could not load the saved document: "+(e.message||e));}
+}
+function docChipHtml(d){
+  return `<div class="file-chip${d.id===state.activeDocId?' active':''}" data-doc="${d.id}">
+    <svg class="ico file-ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    <div><strong title="${esc(d.name)}">${esc(d.name)}</strong><div class="muted small">${esc(d.meta||"")}</div></div>
+    <div class="file-chip-btns"><button class="x" data-remove-doc="${d.id}" title="Remove"><svg class="ico ico-sm" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+  </div>`;
+}
+function pendingDocChipHtml(){
+  const m=state.savedDocMeta;
+  return `<div class="file-chip pending" data-pending="1" title="Click to load the saved document">
+    <svg class="ico file-ico" viewBox="0 0 24 24"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+    <div><strong title="${esc(m.filename||"approved-copy")}">${esc(m.filename||"approved-copy")}</strong><div class="muted small">Saved on server · click to load</div></div>
+    <div class="file-chip-btns"><button class="x" data-dismiss-pending="1" title="Dismiss"><svg class="ico ico-sm" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+  </div>`;
+}
+// One delegated listener per box, attached ONCE below (not on every re-render
+// — filled.innerHTML gets replaced often, but the container itself doesn't,
+// so re-attaching here would stack up duplicate listeners over time).
+// stopPropagation is unconditional: #dropFilled/#driveFilled sit INSIDE boxes
+// that themselves open the file picker / Drive picker on click, so clicking
+// any chip would otherwise also immediately pop that picker open.
+function wireDocChipClicks(sel){
+  $(sel).addEventListener("click",e=>{
+    e.stopPropagation();
+    const rm=e.target.closest("[data-remove-doc]");if(rm){removeDocBundle(rm.dataset.removeDoc);return;}
+    const dismiss=e.target.closest("[data-dismiss-pending]");if(dismiss){state.savedDocMeta=null;renderDocChips();return;}
+    const pending=e.target.closest("[data-pending]");if(pending){loadSavedDoc();return;}
+    const chip=e.target.closest("[data-doc]");if(chip){switchActiveDoc(chip.dataset.doc);}
+  });
+}
+wireDocChipClicks("#dropFilled");
+wireDocChipClicks("#driveFilled");
+function renderDocChipGroup(filledSel,emptySel,docs,pendingHere){
+  const filled=$(filledSel),empty=$(emptySel);
+  const hasAny=docs.length||pendingHere;
+  if(!hasAny){filled.classList.add("hidden");filled.innerHTML="";empty.classList.remove("hidden");return;}
+  empty.classList.add("hidden");filled.classList.remove("hidden");
+  filled.innerHTML=`<div class="file-chip-list">${docs.map(docChipHtml).join("")}${pendingHere?pendingDocChipHtml():""}</div>`;
+}
+function renderDocChips(){
+  // If Drive isn't available in this environment (needs https — see initAuth),
+  // the box itself stays hidden entirely; a saved doc that originally came
+  // from Drive still needs to live SOMEWHERE clickable, so it falls back to
+  // the upload box's chip list instead of being stranded in a hidden box.
+  const driveAvailable=!$("#driveBox").classList.contains("hidden");
+  const pendingIsDrive=!!(state.savedDocMeta&&state.savedDocMeta.docUrl)&&driveAvailable;
+  renderDocChipGroup("#dropFilled","#dropEmpty",state.docs.filter(d=>d.source!=="drive"),state.savedDocMeta&&!pendingIsDrive);
+  renderDocChipGroup("#driveFilled","#driveEmpty",state.docs.filter(d=>d.source==="drive"),pendingIsDrive);
 }
 // Flashes over the box the instant a load attempt settles: a green check when
 // the doc parsed fine, a red X when it didn't — then fades either one out to
@@ -1940,13 +2070,15 @@ async function loadFile(file,docUrl,source){
       hidePageSelect();setStatus("No usable copy found in this file. If it's a scanned/image PDF, the copy can't be read automatically.","err");toast("No readable copy in file");flashDocFlash(flashSel,false);return;}
     state.approvedText=rawText;state.isDocx=file.name.toLowerCase().endsWith(".docx");state.docFile=file;state.docComments=comments||[];renderDocComments();
     state.docKind=docKind;state.pdfDoc=pdf||null;state.pdfLines=lines||[];state.docText=rawText;
-    showLoadedIn(state.docSource,file);
     setStatus("Splitting the document into pages…");
     state.pages=await segmentPagesWithClaude(raw,regionSEO);
     renderPageSelect(state.pages);
     selectPage(0,{initial:true});
     autoSelectPageFromUrl();  // Page URL may already be filled in before the doc finished loading
-  }catch(err){state.approvedText="";state.approvedBlocks=[];state.pages=[];state.docFile=null;hidePageSelect();setStatus((err.message||"Could not read file")+". Use .pdf or .docx (not old .doc).","err");toast("Failed to read file");flashDocFlash(flashSel,false);}
+    const meta=`${file.name.split(".").pop().toUpperCase()} · ${(file.size/1024).toFixed(0)} KB`;
+    addDocBundle(file.name,state.docSource,state.docUrl,meta);
+    flashDocFlash(flashSel,true);
+  }catch(err){hidePageSelect();setStatus((err.message||"Could not read file")+". Use .pdf or .docx (not old .doc).","err");toast("Failed to read file");flashDocFlash(flashSel,false);}
 }
 
 $("#howBtn").addEventListener("click",()=>$("#howModal").classList.remove("hidden"));
@@ -2119,15 +2251,10 @@ function resetToolState(){
   state.issues=[];state.allIssues=[];state.status=new Map();state.score=undefined;
   state.approvedCount=undefined;state.pageCount=undefined;state.runs=[];state.runDetails={};state.currentRunId=null;state.currentRunCompleted=false;
   state.siteTabs=[];state.activeTabUrl=null;$("#pageTabsSection").classList.add("hidden");$("#pageTabs").innerHTML="";
-  state.approvedText="";state.approvedBlocks=[];state.pages=[];
-  state.docKind=null;state.pdfDoc=null;state.pdfLines=[];state.docText="";state.isDocx=false;
-  state.docFile=null;state.docUrl=null;state.docSource=null;state.docComments=[];state.meta={};state.projectName="";
-  fileInput.value="";$("#dropFilled").classList.add("hidden");$("#dropEmpty").classList.remove("hidden");
-  $("#driveFilled").classList.add("hidden");$("#driveEmpty").classList.remove("hidden");
-  $("#dropzone").classList.remove("inactive");$("#driveBox").classList.remove("inactive");
-  hidePageSelect();setStatus("No approved copy loaded yet.");
+  state.meta={};state.projectName="";
+  clearAllDocs();
   $("#clientName").value="";
-  $("#historyTrigger").classList.add("hidden");$("#projectDocRow").classList.add("hidden");$("#historyCount").textContent="0";$("#historyModal").classList.add("hidden");
+  $("#historyTrigger").classList.add("hidden");$("#historyCount").textContent="0";$("#historyModal").classList.add("hidden");
   $("#pageName").value="";$("#pageUrl").value="";
   $("#runNote").textContent="";
   $("#results").classList.add("hidden");
@@ -2150,16 +2277,14 @@ async function loadProject(id){
     // teammate opening this project fresh, on a different browser, starts
     // with no tabs and no selection, same as always.
     loadNoteCounts();
-    // Current approved document: any teammate can download it (and open the
-    // original in Drive when it came from Drive) without re-uploading.
-    const docRow=$("#projectDocRow");
+    // Current approved document: shown as a "pending" chip in the same box it
+    // came from (see renderDocChips()/loadSavedDoc()) — clicking it fetches
+    // and parses it on demand, rather than spending an AI segmentation call
+    // on every project open whether or not anyone needed the document yet.
     if(p.has_document){
-      $("#projectDocName").textContent=p.doc_filename||"approved-copy";
-      const dl=$("#projectDocDownload");dl.href=`${API_BASE}/projects/${id}/document`;dl.setAttribute("download",p.doc_filename||"approved-copy");
-      const op=$("#projectDocOpen");
-      if(p.doc_url){op.href=p.doc_url;op.classList.remove("hidden");}else{op.classList.add("hidden");}
-      docRow.classList.remove("hidden");
-    }else docRow.classList.add("hidden");
+      state.savedDocMeta={filename:p.doc_filename||"approved-copy",docUrl:p.doc_url||null};
+      renderDocChips();
+    }
   }catch(e){
     $("#projectTitleHeading").textContent="Project";
     toast("Could not load project: "+(e.message||e));
@@ -2236,10 +2361,27 @@ function renderPageTabs(){
     const avatars=here.length?`<div class="tab-avatars">${here.map(u=>
       `<div class="tab-avatar">${u.avatar?`<img src="${esc(u.avatar)}" alt="" onerror="this.remove()">`:esc(tabInitials(u.name||u.email))}</div>`).join("")}</div>`:"";
     const tooltip=here.length?`<div class="tab-tooltip">${peopleWorkingText(here)}</div>`:"";
-    return `<button type="button" class="page-tab${t.url===state.activeTabUrl?" active":""}" data-url="${esc(t.url)}" data-run="${t.runId}">${avatars}<span class="tab-name">${esc(t.name)}</span>${tooltip}</button>`;
+    // .tab-close is a <span>, not a nested <button> (buttons can't nest inside
+    // the .page-tab button) — e.stopPropagation() below keeps its click from
+    // also selecting the tab.
+    return `<button type="button" class="page-tab${t.url===state.activeTabUrl?" active":""}" data-url="${esc(t.url)}" data-run="${t.runId}">${avatars}<span class="tab-name">${esc(t.name)}</span><span class="tab-close" data-close="${esc(t.url)}" title="Remove this tab"><svg class="ico ico-sm" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>${tooltip}</button>`;
   }).join("");
   $$("#pageTabs .page-tab").forEach(b=>b.addEventListener("click",()=>selectPageTab(b.dataset.url,+b.dataset.run)));
+  $$("#pageTabs .tab-close").forEach(x=>x.addEventListener("click",e=>{e.stopPropagation();removeSiteTab(x.dataset.close);}));
   $("#tabsPlaceholder").classList.toggle("hidden",!!state.activeTabUrl);
+}
+// Removing a tab is a local/session action only — it just clears the button
+// from this bar (and from localStorage, see saveTabsToStorage). The page's
+// real history/runs in the database are completely untouched; re-checking
+// that URL (or a teammate having it open) brings the tab straight back.
+function removeSiteTab(url){
+  state.siteTabs=state.siteTabs.filter(t=>t.url!==url);
+  if(state.activeTabUrl===url){
+    state.activeTabUrl=null;state.currentRunId=null;state.currentRunCompleted=false;
+    $("#results").classList.add("hidden");
+  }
+  saveTabsToStorage();
+  renderPageTabs();
 }
 async function selectPageTab(url,runId){
   if(state.isRunning){toast("Wait for the current check to finish");return;}
@@ -2312,16 +2454,23 @@ function fmtDate(iso){if(!iso)return "—";const d=new Date(iso);return `${Strin
 async function renderHistoryBody(){
   const body=$("#historyBody");
   // Scoped to whichever page tab is active — each page keeps its own history.
-  // With no tab selected yet, fall back to every run in the project.
-  const runs=state.activeTabUrl?state.runs.filter(r=>r.page_url===state.activeTabUrl):state.runs;
-  if(!runs.length){body.innerHTML=`<div class="hist-empty">${state.activeTabUrl?"No runs saved for this page yet.":'No runs saved for this project yet — click "Check" to start the history.'}</div>`;return;}
+  // Deliberately does NOT fall back to "every run in the project" when no tab
+  // is selected: mixing runs from unrelated pages into one date-sorted list
+  // reads as random noise (a 68% next to a 95% next to a 100% — different
+  // pages, not progress on one page), which is exactly the "disordered"
+  // history this was meant to avoid. Pick a page first.
+  if(!state.activeTabUrl){
+    body.innerHTML=`<div class="hist-empty">Select a page tab above to see its history.</div>`;
+    return;
+  }
+  const runs=state.runs.filter(r=>r.page_url===state.activeTabUrl);
+  if(!runs.length){body.innerHTML=`<div class="hist-empty">No runs saved for this page yet.</div>`;return;}
   // The "Match score over time" sparkline used to render here — removed per
   // request but deliberately NOT deleted: buildSparkline() and its .spark-*
   // CSS are still intact below/in the stylesheet, unused, in case it comes
   // back later. To restore: re-add the .spark-wrap block (see git history for
   // this commit) and call buildSparkline(body,[...state.runs].reverse()).
   body.innerHTML=`
-    ${state.activeTabUrl?`<div class="muted small" style="margin-bottom:10px;">Showing history for this page only.</div>`:""}
     <div class="run-head">
       <div class="run-date">Date</div>
       <div class="run-time">Time</div>

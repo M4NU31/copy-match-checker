@@ -562,10 +562,10 @@ def _issue_stats(issues, score):
     — so the dashboard card and the project page never show two different numbers."""
     errors = [i for i in issues if isinstance(i, dict) and i.get("type") != "Observation"]
     total = len(errors)
-    # "done" and "solved_qa" statuses count as resolved; fall back to the legacy
-    # boolean `done` for rows saved before the 4-state status existed.
+    # "done", "solved_qa" and "dismissed" statuses count as resolved; fall back
+    # to the legacy boolean `done` for rows saved before the status existed.
     resolved = len([i for i in errors
-                    if i.get("status") in ("done", "solved_qa")
+                    if i.get("status") in ("done", "solved_qa", "dismissed")
                     or (not i.get("status") and i.get("done"))])
     if total == 0:
         live = 100
@@ -1042,7 +1042,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     if isinstance(issue, dict) and issue.get("id") == issue_id:
                         if status is not None:
                             issue["status"] = status
-                            issue["done"] = status in ("done", "solved_qa")  # keep the legacy flag in sync
+                            issue["done"] = status in ("done", "solved_qa", "dismissed")  # keep the legacy flag in sync
                         else:
                             issue["done"] = done
                         changed = True
