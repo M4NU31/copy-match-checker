@@ -738,7 +738,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10cl · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10cm · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -2124,6 +2124,17 @@ async function run(){
   const scope={nav:false,footer:false,cta:true,links:true};  // full-body extraction; Scope filters the checks below
   const btn=$("#runBtn");state.isRunning=true;state.runCtrl=new AbortController();
   btn.innerHTML=`<span class="spinner"></span> Cancel`;$("#runNote").textContent="";
+  // Captured NOW, before any await — a check is slow (page render + Claude,
+  // easily 10s of seconds), and re-reading state.projectId/DOM fields AFTER
+  // that wait let a check started on one project silently save under
+  // whatever project the user had since navigated to (or the wrong document,
+  // if they'd also switched which one was active) — a real production
+  // incident: a slow Credence check finished while "DFIR" was open and
+  // overwrote DFIR's project row with Credence's document/score/issues.
+  // Every value the save needs is pinned to what was true at click time.
+  const ctx={pid:state.projectId,approvedBlocks:state.approvedBlocks,
+    docFile:state.docFile,docUrl:state.docUrl,
+    siteName:$("#clientName").value.trim(),pageName:$("#pageName").value.trim(),url};
   try{
     $("#runNote").textContent="Rendering the page (JavaScript included)…";
     const html=await fetchPageHtml(url);
@@ -2131,31 +2142,40 @@ async function run(){
     if(!page.fullText||page.fullText.length<20)throw new Error("Could not extract readable text from the page.");
     state.status=new Map();  // fresh run → clear resolved marks
     $("#runNote").textContent="Asking Claude to compare the copy…";
-    const cmp=await compareWithClaude(state.approvedBlocks,page);
+    const cmp=await compareWithClaude(ctx.approvedBlocks,page);
     const mechIssues=mechanicalAndLinkChecks(page,scope);
     // Scope: keep only the requested categories of checks
     const CONTENT_TYPES=new Set(["Missing Copy","Copy Mismatch","Extra Section","Typo","Spacing Issue","Punctuation Issue","Observation"]);
-    state.issues=[...cmp.issues,...mechIssues].filter(i=>i.type==="CTA Issue"?sel.cta:i.type==="Link Review"?sel.links:CONTENT_TYPES.has(i.type)?sel.content:true)
+    const issues=[...cmp.issues,...mechIssues].filter(i=>i.type==="CTA Issue"?sel.cta:i.type==="Link Review"?sel.links:CONTENT_TYPES.has(i.type)?sel.content:true)
       .map(i=>({...i,id:issueId(i),done:false}));
-    state.score=cmp.score;
-    state.approvedCount=state.approvedBlocks.filter(b=>b.kind!=="alternate").length;
-    state.pageCount=page.blocks.length;
-    state.meta={client:$("#clientName").value.trim(),page:$("#pageName").value.trim(),url,cms};
+    const score=cmp.score;
+    const meta={client:ctx.siteName,page:ctx.pageName,url:ctx.url,cms};
     // Save BEFORE rendering — saveProjectRun() is what sets state.currentRunId
     // (the run any status click gets pinned to). Rendering first made the
     // table clickable while state.currentRunId still pointed at the PREVIOUS
     // run, so marking an issue Done fast enough (right as results appeared)
     // silently mirrored the status onto the wrong, already-superseded run.
     $("#runNote").textContent="Saving…";
-    const saveResult=await saveProjectRun();
+    const saveResult=await saveProjectRun(ctx,issues,score,meta);
+    if(ctx.pid!==state.projectId){
+      // The user has since navigated to a different project — the save above
+      // still correctly went to ctx.pid (the project this check was actually
+      // FOR), never the one now on screen. Just don't touch this other
+      // project's live UI with those results.
+      toast(saveResult.ok?"A check on another project finished and saved there.":"A check on another project finished but failed to save.");
+      return;
+    }
+    state.issues=issues;state.score=score;state.meta=meta;
+    state.approvedCount=ctx.approvedBlocks.filter(b=>b.kind!=="alternate").length;
+    state.pageCount=page.blocks.length;
     renderAll();
     state.currentRunCompleted=false;  // a fresh run starts unresolved (unless there are 0 issues, in which case nothing ever needs to fork)
     // The page you just checked gets (or updates) its own tab and becomes the
     // active one — tabs only grow this way, one at a time, as real Checks
     // happen; older pages stay out of this bar and live in History instead.
-    addSiteTab(state.meta.url,state.meta.page,state.currentRunId);
-    state.activeTabUrl=state.meta.url;renderPageTabs();
-    rtSend({type:"page_focus",page_url:state.meta.url});
+    addSiteTab(meta.url,meta.page,state.currentRunId);
+    state.activeTabUrl=meta.url;renderPageTabs();
+    rtSend({type:"page_focus",page_url:meta.url});
     loadNoteCounts();  // refresh Notes badges in the background — same issue ids can carry notes across runs
     // A save failure is shown in the persistent run-note text, not just a
     // toast — the "QA complete" toast right below would otherwise instantly
@@ -2167,24 +2187,26 @@ async function run(){
     else{$("#runNote").textContent="";toast("Check failed");alert("Could not complete the check:\n\n"+(err.message||err));}
   }finally{state.isRunning=false;state.runCtrl=null;btn.innerHTML=`<svg class="ico ico-sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Check`;}
 }
-async function saveProjectRun(){
-  if(!state.projectId)return {ok:true};
+async function saveProjectRun(ctx,issues,score,meta){
+  if(!ctx.pid)return {ok:true};
   try{
     let document=null;
-    if(state.docFile){
-      document={filename:state.docFile.name,content_type:mimeFor(state.docFile.name),data_base64:await fileToBase64(state.docFile),url:state.docUrl||null};
+    if(ctx.docFile){
+      document={filename:ctx.docFile.name,content_type:mimeFor(ctx.docFile.name),data_base64:await fileToBase64(ctx.docFile),url:ctx.docUrl||null};
     }
-    const saved=await apiPut(`/projects/${state.projectId}/run`,{
-      site_name:state.meta.client,page_name:state.meta.page,page_url:state.meta.url,
-      score:state.score,issues:state.issues,document,ran_by:getUserName(),
+    const saved=await apiPut(`/projects/${ctx.pid}/run`,{
+      site_name:meta.client,page_name:meta.page,page_url:meta.url,
+      score,issues,document,ran_by:getUserName(),
     });
-    // Pin later status changes to THIS run — see setIssueStatus. Without this,
-    // the backend had to guess "whichever run is newest," which broke if the
-    // user switched to checking a different page before every status PATCH
-    // for this run had finished (the guess would then land on the wrong,
-    // unrelated newer run and silently do nothing).
-    state.currentRunId=saved&&saved.run_id!=null?saved.run_id:null;
-    loadRuns();  // refresh the History button's count + list in the background
+    // Pin later status changes to THIS run — see setIssueStatus. Only touch
+    // state.currentRunId/refresh History if we're still actually looking at
+    // the project this run belongs to (ctx.pid) — otherwise this would just
+    // as easily point a DIFFERENT project's future status clicks at the
+    // wrong run, the same class of bug this whole capture was fixing.
+    if(ctx.pid===state.projectId){
+      state.currentRunId=saved&&saved.run_id!=null?saved.run_id:null;
+      loadRuns();  // refresh the History button's count + list in the background
+    }
     return {ok:true};
   }catch(e){return {ok:false,error:e.message||String(e)};}
 }
