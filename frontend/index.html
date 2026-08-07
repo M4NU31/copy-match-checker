@@ -401,7 +401,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .history-trigger:hover{border-color:var(--pink); color:var(--pink-2);}
 .history-trigger .ico{color:var(--pink);}
 .history-trigger .count{background:var(--pink-dim); color:var(--pink-2); border-radius:20px; padding:1px 8px; font-size:11.5px;}
-.hist-box{width:100%; max-width:1320px; max-height:min(88vh,820px); display:flex; flex-direction:column; padding:0; overflow:hidden;}
+.hist-box{width:100%; max-width:1480px; max-height:min(88vh,820px); display:flex; flex-direction:column; padding:0; overflow:hidden;}
 .hist-head{display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:22px 24px 16px; border-bottom:1px solid var(--border);}
 .hist-head h3{margin:0 0 3px; display:flex; align-items:center; gap:9px; font-size:19px;}
 .hist-head h3 .ico{width:19px; height:19px; color:var(--pink);}
@@ -479,7 +479,6 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 .run-status-tag svg{width:10px; height:10px;}
 .run-contrib-avatar{width:22px; height:22px; border-radius:50%; border:2px solid var(--input); background:var(--pink-dim); color:var(--pink-2);
   font-size:9.5px; font-weight:700; display:flex; align-items:center; justify-content:center; flex:none;}
-.run-contrib-names{font-size:11.5px; color:var(--text-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 .run-resolver-chip{display:inline-flex; align-items:center; gap:6px; font-size:11.5px; color:var(--text-2); white-space:nowrap;}
 .run-fork-note{font-size:11px; color:var(--muted); display:flex; align-items:center; gap:5px;}
 .run-fork-note svg{width:12px; height:12px; color:var(--border-2); flex:none;}
@@ -489,7 +488,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 }
 
 /* read-only revision snapshot viewer */
-.rev-box{width:100%; max-width:1320px; max-height:min(88vh,820px); display:flex; flex-direction:column; padding:0; overflow:hidden;}
+.rev-box{width:100%; max-width:1480px; max-height:min(88vh,820px); display:flex; flex-direction:column; padding:0; overflow:hidden;}
 .rev-head{display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:22px 24px 16px; border-bottom:1px solid var(--border);}
 .rev-head h3{margin:0 0 3px; display:flex; align-items:center; gap:9px; font-size:19px;}
 .rev-head h3 .ico{width:19px; height:19px; color:var(--pink);}
@@ -508,6 +507,8 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
   letter-spacing:.4px; padding:8px; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--card);}
 .rev-table td{padding:10px 8px; border-bottom:1px solid var(--border); vertical-align:top; color:var(--text-2);}
 .rev-table tr:last-child td{border-bottom:none;}
+.rev-status-cell{display:flex; flex-direction:column; align-items:flex-start; gap:6px;}
+.rev-changed-by{display:inline-flex; align-items:center; gap:5px; font-size:11px; color:var(--muted); white-space:nowrap;}
 </style>
 </head>
 <body>
@@ -719,7 +720,7 @@ tr.done .cell-current, tr.done .cell-approved{text-decoration:line-through;}
 
   <footer class="appfoot">
     <span class="muted small">💡 Tip: make sure the approved document is the most recent version before running the check.</span>
-    <span class="muted small">Copy Match Checker · build 2026-07-10ce · Punch Toolkit</span>
+    <span class="muted small">Copy Match Checker · build 2026-07-10cf · Punch Toolkit</span>
   </footer>
 </div>
 
@@ -2521,10 +2522,13 @@ async function renderHistoryBody(){
       :`<span class="run-status-tag progress">${r.issues_resolved}/${r.issues_total} resolved</span>`;
     // Who resolved HOW MANY issues, not just "who touched something" — one
     // chip per person, each with their own count, driven by each issue's
-    // resolved_by field (see _resolver_counts() in serve.py).
-    const resolverChips=resolverNames.length
-      ?resolverNames.map(name=>`<span class="run-resolver-chip"><span class="run-contrib-avatar">${esc(tabInitials(name))}</span>${esc(name)} · ${resolvers[name]} resolved</span>`).join("")
-      :`<span class="run-contrib-names muted">No status changes yet</span>`;
+    // changed_by field (see _resolver_counts() in serve.py). No fallback text
+    // when it's empty — issues resolved before this field existed (or via a
+    // legacy status write) have no attribution, and "no status changes yet"
+    // read as flatly wrong sitting right next to a nonzero resolved count.
+    const resolverChips=resolverNames.map(name=>
+      `<span class="run-resolver-chip"><span class="run-contrib-avatar">${esc(tabInitials(name))}</span>${esc(name)} · ${resolvers[name]} resolved</span>`
+    ).join("");
     const byAvatar=r.ran_by?`<span class="run-by-avatar">${esc(tabInitials(r.ran_by))}</span>`:"";
     const parent=r.forked_from?byId.get(r.forked_from):null;
     const forkNote=r.forked_from?`<span class="run-fork-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v8a4 4 0 0 0 4 4h4"/><path d="M18 13v8"/></svg>Continued after ${parent?fmtDate(parent.ran_at):"an earlier run"} was completed</span>`:"";
@@ -2584,8 +2588,8 @@ async function openRevisionView(runId,r){
     // no need for the server to send a separate resolvers summary too).
     const resolverCounts={};
     (run.issues||[]).forEach(i=>{
-      if(i.type!=="Observation"&&["done","solved_qa","dismissed"].includes(i.status)&&i.resolved_by){
-        resolverCounts[i.resolved_by]=(resolverCounts[i.resolved_by]||0)+1;
+      if(i.type!=="Observation"&&["done","solved_qa","dismissed"].includes(i.status)&&i.changed_by){
+        resolverCounts[i.changed_by]=(resolverCounts[i.changed_by]||0)+1;
       }
     });
     $("#revResolvers").innerHTML=Object.keys(resolverCounts).map(name=>
@@ -2594,13 +2598,16 @@ async function openRevisionView(runId,r){
     const rows=(run.issues||[]).filter(i=>i.type!=="Observation");
     $("#revBody").innerHTML=rows.length?rows.map(i=>{
       const st=i.status||null;const rid=issueId(i);const nc=state.noteCounts.get(rid)||0;
+      // Whoever's click most recently set THIS row's status — blank for a
+      // row nobody has ever touched (still Not Started, no changed_by yet).
+      const byWhom=i.changed_by?`<span class="rev-changed-by" title="${esc(i.changed_by)}"><span class="run-by-avatar">${esc(tabInitials(i.changed_by))}</span>${esc(i.changed_by)}</span>`:"";
       return `<tr>
       <td>${esc(i.section)}</td>
       <td><span class="type-pill">${esc(i.type)}</span></td>
       <td class="cell-approved">${i.approved==="—"?'<span class="empty-dash">—</span>':esc(i.approved)}</td>
       <td class="cell-current">${i.current==="—"?'<span class="empty-dash">—</span>':esc(i.current)}</td>
       <td class="notes-cell"><button class="notes-btn${hasUnreadNotes(rid)?' unread':''}" data-notes="${esc(rid)}" title="Notes"><svg class="ico" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-3.8 7 8.5 8.5 0 0 1-9 .8L3 21l1.8-5.2a8.5 8.5 0 0 1 .8-9 8.38 8.38 0 0 1 7-3.8h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>${nc?`<span class="notes-count">${nc}</span>`:""}</button></td>
-      <td>${st?`<span class="status-btn" style="--sc:${STATUS_COLORS[st]}; cursor:default;">${STATUS_LABELS[st]}</span>`:'<span class="empty-dash">—</span>'}</td>
+      <td class="rev-status-cell">${st?`<span class="status-btn" style="--sc:${STATUS_COLORS[st]}; cursor:default;">${STATUS_LABELS[st]}</span>${byWhom}`:'<span class="empty-dash">—</span>'}</td>
       </tr>`;}).join("")
     :`<tr><td colspan="6" class="no-rows">No issues in this revision.</td></tr>`;
     $("#revBody").querySelectorAll(".notes-btn").forEach(b=>b.addEventListener("click",()=>{

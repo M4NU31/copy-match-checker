@@ -577,17 +577,18 @@ def _issue_stats(issues, score):
 
 def _resolver_counts(issues):
     """How many issues each named person resolved in this run — driven by the
-    per-issue resolved_by field (see handle_issue_toggle), not the coarser
-    run-level `contributors` list (which just means "touched something",
-    Done or not). Issues resolved before resolved_by existed, or resolved
-    without a signed-in name, have no attribution and are simply left out
-    rather than credited to a made-up "Unknown" bucket."""
+    per-issue changed_by field (see handle_issue_toggle: whoever's status
+    click most recently touched that issue), filtered to a resolved status.
+    Not the coarser run-level `contributors` list (which just means "touched
+    something", Done or not). Issues resolved before changed_by existed, or
+    resolved without a signed-in name, have no attribution and are simply
+    left out rather than credited to a made-up "Unknown" bucket."""
     counts = {}
     for i in issues:
         if not isinstance(i, dict) or i.get("type") == "Observation":
             continue
-        if i.get("status") in ("done", "solved_qa", "dismissed") and i.get("resolved_by"):
-            name = i["resolved_by"]
+        if i.get("status") in ("done", "solved_qa", "dismissed") and i.get("changed_by"):
+            name = i["changed_by"]
             counts[name] = counts.get(name, 0) + 1
     return counts
 
@@ -1061,12 +1062,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                         if status is not None:
                             issue["status"] = status
                             issue["done"] = status in ("done", "solved_qa", "dismissed")  # keep the legacy flag in sync
-                            # Per-issue attribution: who actually resolved THIS one —
-                            # lets History show "who resolved how many", not just a flat
-                            # "these people touched something" list. Cleared on an undo
-                            # (back to not_started/in_progress) so a reopened issue
-                            # doesn't keep crediting whoever closed it before.
-                            issue["resolved_by"] = changed_by if issue["done"] and changed_by else None
+                            # Per-issue attribution: whoever's click most recently set
+                            # THIS issue's status — shown next to its status pill in
+                            # Review overview, and (filtered to resolved statuses)
+                            # aggregated into "who resolved how many" in both History
+                            # and Review overview. Always overwritten on any change,
+                            # including an undo, since it should reflect who's
+                            # responsible for the CURRENT status, not a stale resolver.
+                            if changed_by:
+                                issue["changed_by"] = changed_by
                         else:
                             issue["done"] = done
                         changed = True
